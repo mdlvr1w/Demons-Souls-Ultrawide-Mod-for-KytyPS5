@@ -67,7 +67,7 @@ This project is an example of what can happen when AI-assisted development meets
 
 ## Disclaimer
 
-This is an unofficial, community-made modification and is not affiliated with or endorsed by Sony Interactive Entertainment, FromSoftware, or the KytyPS5 developers.
+This is an unofficial, community-made modification and is not affiliated with or endorsed by Bluepoint Games, Sony Interactive Entertainment, FromSoftware, or the KytyPS5 developers.
 
 Demon's Souls and all associated trademarks and game assets belong to their respective owners.
 
