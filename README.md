@@ -1,6 +1,5 @@
 # Demons-Souls-Ultrawide-Mod-for-KytyPS5-SuperMedo-version
 
-====================================
 
 A patch for the PS5 remake of Demon's Souls on the KytyPS5 emulator.
 Gameplay fills a 3440x1440 screen, wider on both sides, without stretch.
