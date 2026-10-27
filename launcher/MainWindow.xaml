@@ -1,0 +1,227 @@
+<Window x:Class="DemonsSoulsLauncher.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Demon's Souls"
+        Width="1280" Height="720"
+        WindowStartupLocation="CenterScreen"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        Background="#0B0B0C"
+        MouseLeftButtonDown="Window_MouseLeftButtonDown"
+        PreviewKeyDown="Window_KeyDown">
+  <Grid>
+    <Image x:Name="Backdrop" Stretch="UniformToFill"/>
+    <Rectangle>
+      <Rectangle.Fill>
+        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+          <GradientStop Color="#E60B0B0C" Offset="0"/>
+          <GradientStop Color="#990B0B0C" Offset="0.45"/>
+          <GradientStop Color="#CC0B0B0C" Offset="1"/>
+        </LinearGradientBrush>
+      </Rectangle.Fill>
+    </Rectangle>
+
+    <Grid Margin="48,28,36,32">
+      <Grid.RowDefinitions>
+        <RowDefinition Height="Auto"/>
+        <RowDefinition Height="*"/>
+        <RowDefinition Height="Auto"/>
+      </Grid.RowDefinitions>
+
+      <DockPanel>
+        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Top">
+          <Button Content="—" Width="36" Height="28" Padding="0" Click="Minimize_Click"/>
+          <Button Content="×" Width="36" Height="28" Padding="0" Margin="8,0,0,0" Click="Close_Click"/>
+        </StackPanel>
+        <StackPanel Orientation="Horizontal">
+          <Border Width="92" Height="92" BorderBrush="#66C6A15B" BorderThickness="1" Background="#22000000">
+            <Image x:Name="Tile" Stretch="UniformToFill"/>
+          </Border>
+          <StackPanel Margin="22,8,0,0" VerticalAlignment="Center">
+            <TextBlock x:Name="TitleText" Text="Demon's Souls" FontFamily="Georgia" FontSize="40"
+                       Foreground="{StaticResource Ink}"/>
+            <TextBlock x:Name="DetailText" Margin="0,6,0,0" FontFamily="Segoe UI" FontSize="14"
+                       Foreground="{StaticResource Muted}"/>
+          </StackPanel>
+        </StackPanel>
+      </DockPanel>
+
+      <StackPanel x:Name="FrontPage" Grid.Row="2">
+        <Button x:Name="PlayButton" HorizontalAlignment="Left"
+                MinWidth="220" Height="58" Margin="0,0,0,16" Click="Play_Click">
+          <Button.Template>
+            <ControlTemplate TargetType="Button">
+              <Border x:Name="Chrome" Background="#C6A15B" CornerRadius="2">
+                <TextBlock x:Name="PlayLabel" Text="Play" FontFamily="Georgia" FontSize="22" Foreground="#1A140C"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+              </Border>
+              <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                  <Setter TargetName="Chrome" Property="Background" Value="#D4B36A"/>
+                </Trigger>
+                <Trigger Property="IsEnabled" Value="False">
+                  <Setter TargetName="Chrome" Property="Background" Value="#5C5346"/>
+                  <Setter Property="Opacity" Value="0.7"/>
+                </Trigger>
+              </ControlTemplate.Triggers>
+            </ControlTemplate>
+          </Button.Template>
+        </Button>
+        <Button Content="Settings" HorizontalAlignment="Left" Click="OpenSettings_Click"/>
+        <TextBlock x:Name="StatusText" Margin="0,14,0,0" FontFamily="Segoe UI" FontSize="13"
+                   Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+      </StackPanel>
+
+      <ScrollViewer x:Name="SettingsPage" Grid.Row="1" Grid.RowSpan="2" Visibility="Collapsed"
+                    Background="Transparent"
+                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                    Margin="0,28,0,0">
+        <StackPanel>
+          <TextBlock Text="Settings" FontFamily="Georgia" FontSize="28" Foreground="{StaticResource Ink}"/>
+          <TextBlock Text="General" Margin="0,18,0,10" FontFamily="Georgia" FontSize="20"
+                     Foreground="{StaticResource Gold}"/>
+
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Kyty" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+            <TextBox x:Name="KytyBox" Grid.Column="1" Height="32" IsReadOnly="True"
+                     Background="#22000000" Foreground="{StaticResource Ink}" BorderBrush="#44C6A15B"
+                     VerticalContentAlignment="Center" Padding="8,0"/>
+            <Button Grid.Column="2" Content="Browse" Margin="10,0,0,0" Click="BrowseKyty_Click"/>
+          </Grid>
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Game" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+            <TextBox x:Name="GameBox" Grid.Column="1" Height="32" IsReadOnly="True"
+                     Background="#22000000" Foreground="{StaticResource Ink}" BorderBrush="#44C6A15B"
+                     VerticalContentAlignment="Center" Padding="8,0"/>
+            <Button Grid.Column="2" Content="Browse" Margin="10,0,0,0" Click="BrowseGame_Click"/>
+          </Grid>
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Language" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+            <ComboBox x:Name="LanguageBox" Grid.Column="1" Height="32"/>
+          </Grid>
+
+          <TextBlock Text="Picture" Margin="0,16,0,10" FontFamily="Georgia" FontSize="20"
+                     Foreground="{StaticResource Gold}"/>
+          <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
+            <Button x:Name="WideButton" Content="16:9" MinWidth="120" Click="Mode_Click" Tag="fit"/>
+            <Button x:Name="UltraButton" Content="Ultrawide" MinWidth="140" Margin="10,0,0,0" Click="Mode_Click" Tag="wide"/>
+          </StackPanel>
+          <Grid x:Name="RenderRow" Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="*"/>
+              <ColumnDefinition Width="220"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Render" VerticalAlignment="Center" FontFamily="Segoe UI" FontSize="15"
+                       Foreground="{StaticResource Muted}"/>
+            <Slider x:Name="RenderSlider" Grid.Column="1" Minimum="50" Maximum="100" Value="100"
+                    TickFrequency="1" IsSnapToTickEnabled="True" VerticalAlignment="Center"
+                    Margin="0,0,18,0" ValueChanged="RenderSlider_ValueChanged"/>
+            <TextBlock x:Name="RenderLabel" Grid.Column="2" VerticalAlignment="Center"
+                       FontFamily="Segoe UI" FontSize="15" Foreground="{StaticResource Ink}"
+                       TextAlignment="Right"/>
+          </Grid>
+          <TextBlock x:Name="RenderHint"
+                     Text="The 3D picture only. The window and the HUD stay full size."
+                     Margin="0,0,0,8" FontFamily="Segoe UI" FontSize="12" Foreground="#887A6C"/>
+
+          <StackPanel x:Name="CameraSection" Margin="0,8,0,0">
+            <TextBlock Text="Camera" Margin="0,8,0,10" FontFamily="Georgia" FontSize="20"
+                       Foreground="{StaticResource Gold}"/>
+            <TextBlock Text="The original distance is as close as it gets. Four steps is as far as it goes."
+                       Margin="0,0,0,10" FontFamily="Segoe UI" FontSize="12" Foreground="#887A6C"/>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="Farther" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+              <Button x:Name="FartherKeyButton" Grid.Column="1" HorizontalAlignment="Left" MinWidth="160"
+                      Click="FartherKey_Click"/>
+            </Grid>
+            <Grid Margin="0,0,0,8">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="90"/>
+                <ColumnDefinition Width="*"/>
+              </Grid.ColumnDefinitions>
+              <TextBlock Text="Closer" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+              <Button x:Name="CloserKeyButton" Grid.Column="1" HorizontalAlignment="Left" MinWidth="160"
+                      Click="CloserKey_Click"/>
+            </Grid>
+          </StackPanel>
+
+          <StackPanel x:Name="ShaderSection" Margin="0,8,0,0">
+            <TextBlock Text="Shaders" Margin="0,8,0,10" FontFamily="Georgia" FontSize="20"
+                       Foreground="{StaticResource Gold}"/>
+            <Button x:Name="PrecompileButton" Content="Precompile shaders" HorizontalAlignment="Left"
+                    Click="Precompile_Click"/>
+            <Grid Margin="0,14,0,0">
+              <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="140"/>
+              </Grid.ColumnDefinitions>
+              <ProgressBar x:Name="ShaderBar" Height="18" Minimum="0" Maximum="100"
+                           Foreground="#C6A15B" Background="#33FFFFFF"/>
+              <TextBlock x:Name="ShaderLabel" Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center"
+                         FontFamily="Segoe UI" FontSize="15" Foreground="{StaticResource Ink}"
+                         TextAlignment="Right"/>
+            </Grid>
+          </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+            <Button x:Name="SaveSettingsButton" Content="Save" MinWidth="220" Height="48"
+                    FontFamily="Georgia" FontSize="18" Foreground="#1A140C" Click="SaveSettings_Click">
+              <Button.Template>
+                <ControlTemplate TargetType="Button">
+                  <Border x:Name="Chrome" Background="#C6A15B" CornerRadius="2" Padding="16,8">
+                    <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                  </Border>
+                  <ControlTemplate.Triggers>
+                    <Trigger Property="IsMouseOver" Value="True">
+                      <Setter TargetName="Chrome" Property="Background" Value="#D4B36A"/>
+                    </Trigger>
+                  </ControlTemplate.Triggers>
+                </ControlTemplate>
+              </Button.Template>
+            </Button>
+            <Button x:Name="ManageSavesButton" Content="Manage savegames" Margin="10,0,0,0"
+                    Click="OpenSaves_Click" VerticalAlignment="Center"/>
+            <Button Content="Back" Margin="10,0,0,0" Click="Back_Click" VerticalAlignment="Center"/>
+          </StackPanel>
+          <TextBlock x:Name="SettingsStatus" Margin="0,14,0,8" FontFamily="Segoe UI" FontSize="13"
+                     Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+        </StackPanel>
+      </ScrollViewer>
+
+      <Grid x:Name="SavesPage" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Top" Margin="0,28,0,0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Manage savegames" FontFamily="Georgia" FontSize="28" Foreground="{StaticResource Ink}"/>
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,22,0,0">
+          <Button x:Name="ExportButton" Content="Export save" Click="Export_Click"/>
+          <Button x:Name="ImportButton" Content="Import save" Margin="10,0,0,0" Click="Restore_Click"/>
+          <Button Content="Back" Margin="10,0,0,0" Click="Back_Click"/>
+        </StackPanel>
+        <TextBlock x:Name="SavesStatus" Grid.Row="2" Margin="0,14,0,0" FontFamily="Segoe UI" FontSize="13"
+                   Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
+      </Grid>
+    </Grid>
+  </Grid>
+</Window>

@@ -1,0 +1,8 @@
+launcher/bin/
+launcher/obj/
+launcher-fix.log
+launcher-settings.json
+local-paths.txt
+precompile-progress.txt
+DemonsSoulsLauncher.exe
+DemonsSoulsLauncher.pdb
