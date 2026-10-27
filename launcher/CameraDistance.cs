@@ -16,6 +16,37 @@ public static class CameraDistance
 
     public static int Move(int step, int direction) => Math.Clamp(step + direction, 0, 4);
 
+    public static int StepOf(int bits)
+    {
+        for (var step = 0; step <= 4; step++)
+        {
+            if (bits == BitConverter.SingleToInt32Bits(Distance(step)))
+                return step;
+        }
+        return -1;
+    }
+
+    public static bool TryReadStep(int pid, out int step)
+    {
+        step = 0;
+        if (pid == 0)
+            return false;
+        var process = OpenProcess(0x1F0FFF, false, pid);
+        if (process == 0)
+            return false;
+        try
+        {
+            if (!TryRead(process, out var bits))
+                return false;
+            step = StepOf(bits);
+            return step >= 0;
+        }
+        finally
+        {
+            CloseHandle(process);
+        }
+    }
+
     public static string KeyName(int virtualKey)
     {
         var key = KeyInterop.KeyFromVirtualKey(virtualKey);
@@ -83,15 +114,7 @@ public static class CameraDistance
         }
     }
 
-    static bool IsStepValue(int bits)
-    {
-        for (var step = 0; step <= 4; step++)
-        {
-            if (bits == BitConverter.SingleToInt32Bits(Distance(step)))
-                return true;
-        }
-        return false;
-    }
+    static bool IsStepValue(int bits) => StepOf(bits) >= 0;
 
     static bool TryRead(IntPtr process, out int bits)
     {

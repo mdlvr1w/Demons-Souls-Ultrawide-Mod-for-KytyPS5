@@ -382,6 +382,17 @@ public partial class MainWindow : Window
             _fartherDown = false;
             _closerDown = false;
         }
+        if (CameraDistance.TryReadStep(pid, out var live) && live > _settings.CameraStep)
+        {
+            _settings.CameraStep = live;
+            try
+            {
+                _settings.Save();
+            }
+            catch (IOException)
+            {
+            }
+        }
         CameraDistance.TryApply(pid, _settings.CameraStep);
         if (!CameraDistance.IsForeground(pid))
         {

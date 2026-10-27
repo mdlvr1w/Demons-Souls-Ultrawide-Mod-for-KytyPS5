@@ -45,7 +45,7 @@ Settings:
 
 - **Language.** The same list Kyty uses. English (United States) is the default.
 - **Picture.** Ultrawide or 16:9. The render slider scales the 3D picture from 50% to 100%. The window and the HUD stay full size. At 100% the game uses the full height of the mode you picked.
-- **Camera.** Page Up moves the follow camera farther. Page Down steps back toward the original. The original distance is as close as it gets, and four steps is as far as it goes. The chosen step is saved and applied the next time the launcher sees the game. Both keys can be changed.
+- **Camera.** Page Up moves the follow camera farther. Page Down steps back toward the original. The original distance is as close as it gets, and four steps is as far as it goes. The chosen step is saved and applied the next time the launcher sees the game. If the game is already on a farther step, that step is kept and Page Up will not add another four. Both keys can be changed.
 - **Shaders.** Precompile once for this version of the game. One cache covers 16:9, ultrawide, and the render slider. A cache Kyty already built is recognized.
 - **Manage savegames.** Export and import. Both wait until the game is closed.
 

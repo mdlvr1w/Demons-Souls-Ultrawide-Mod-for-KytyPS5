@@ -140,6 +140,9 @@ public static class SelfTest
         Expect(CameraDistance.Move(4, 1) == 4, "step ceiling");
         Expect(CameraDistance.Move(2, 1) == 3, "step up");
         Expect(CameraDistance.Move(2, -1) == 1, "step down");
+        Expect(CameraDistance.StepOf(BitConverter.SingleToInt32Bits(4.5f)) == 0, "live step 0");
+        Expect(CameraDistance.StepOf(BitConverter.SingleToInt32Bits(9f)) == 4, "live step 4");
+        Expect(CameraDistance.StepOf(BitConverter.SingleToInt32Bits(1f)) == -1, "live step other");
         var settings = new LauncherSettings();
         Expect(settings.CameraStep == 0, "step default");
         Expect(settings.CameraFartherKey == 0x21, "page up");
