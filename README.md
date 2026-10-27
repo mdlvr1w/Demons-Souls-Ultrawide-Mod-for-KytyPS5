@@ -1,19 +1,19 @@
 # Demon's Souls ultrawide
 
-A patch and a launcher for the PS5 remake of Demon's Souls on KytyPS5. Gameplay fills a 3440×1440 screen, wider on both sides, without stretch. The HUD stays 16:9 and centered.
+A patch and a launcher for the PS5 remake of Demon's Souls on [KytyPS5 v20261013](https://github.com/chenxiao07/KytyPS5/releases/tag/v20261013). Gameplay fills a 3440×1440 screen, wider on both sides, without stretch. The HUD stays 16:9 and centered.
 
 This repository does not include the game or the emulator. The game files are not modified.
 
-The patch matches title `PPSA01341`, version `01.007.000`. Another version will not line up.
+The patch matches title `PPSA01341`, version `01.007.000`, on that Kyty release. Another version will not line up.
 
 ## Download
 
-The launcher is ready to run from the [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5-SuperMedo-version/releases/tag/v1.0.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` in that same folder.
+The launcher is ready to run from the [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.0.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` in that same folder.
 
 ## You need
 
 - Windows 10 or 11
-- A Windows build of [KytyPS5](https://github.com/chenxiao07/KytyPS5) from its Releases page, with `kyty_emulator.exe` and `run-windows.ps1` in the same folder
+- [KytyPS5 v20261013](https://github.com/chenxiao07/KytyPS5/releases/tag/v20261013) for Windows, with `kyty_emulator.exe` and `run-windows.ps1` in the same folder
 - Your own unpacked game folder for that title and version. It contains `eboot.bin` and `sce_sys`
 - The .NET 8 SDK, only if you build the launcher yourself. The downloaded launcher does not need it
 
