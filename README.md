@@ -6,16 +6,22 @@ This repository does not include the game or the emulator. The game files are no
 
 The patch matches title `PPSA01341`, version `01.007.000`. Another version will not line up.
 
+## Download
+
+The launcher is ready to run from the [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5-SuperMedo-version/releases/tag/v1.0.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` in that same folder.
+
 ## You need
 
 - Windows 10 or 11
 - A Windows build of [KytyPS5](https://github.com/chenxiao07/KytyPS5) from its Releases page, with `kyty_emulator.exe` and `run-windows.ps1` in the same folder
 - Your own unpacked game folder for that title and version. It contains `eboot.bin` and `sce_sys`
-- The .NET 8 SDK, to build the launcher. The built launcher does not need a separate .NET install
+- The .NET 8 SDK, only if you build the launcher yourself. The downloaded launcher does not need it
 
 Ultrawide is made for a 3440×1440 display. The launcher can also start the game at 1920×1080, with the picture fitted and this patch left off.
 
 ## Build
+
+Skip this if you downloaded the release.
 
 From this folder:
 
