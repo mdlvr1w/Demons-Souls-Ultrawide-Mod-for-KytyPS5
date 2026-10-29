@@ -8,7 +8,7 @@ The patch matches title `PPSA01341`, version `01.007.000`, on that Kyty release.
 
 ## Download
 
-The launcher is ready to run from the [1.1.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.1.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` and `codex_ui_vulkan.dll` in that same folder.
+The launcher is ready to run from the [1.2.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.2.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` and `codex_ui_vulkan.dll` in that same folder.
 
 ## You need
 
@@ -17,7 +17,7 @@ The launcher is ready to run from the [1.1.0 release](https://github.com/mdlvr1w
 - Your own unpacked game folder for that title and version. It contains `eboot.bin` and `sce_sys`
 - The .NET 8 SDK, only if you build the launcher yourself. The downloaded launcher does not need it
 
-The launcher lists the resolutions of the primary display that are 16:9 or wider. A 16:9 choice fits the picture and leaves the patch off. A wider choice widens the world and keeps the interface centered. 1920×1080 and 3440×1440 stay in the list. The [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.0.0) is the previous interface fix.
+The launcher lists the resolutions of the primary display that are 16:9 or wider. A 16:9 choice fits the picture and leaves the patch off. A wider choice widens the world and keeps the interface centered. 1920×1080 and 3440×1440 stay in the list. The [1.1.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.1.0) is the previous centered-interface build. The [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.0.0) is the earlier interface fix.
 
 ## Build
 
@@ -41,7 +41,7 @@ The patch and `codex_ui_vulkan.dll` are copied into that folder next to the exe.
 
 The first time, choose the Kyty folder and the game folder, then choose Save and run.
 
-Settings:
+Settings are split into General, Picture, Camera, and Shaders.
 
 - **Language.** The same list Kyty uses. English (United States) is the default.
 - **Picture.** A resolution of 16:9 or wider. The render slider scales the 3D picture from 50% to 100%. The window and the interface stay full size. At 100% the game uses the full height of the resolution you picked.
