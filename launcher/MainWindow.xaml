@@ -72,15 +72,23 @@
                    Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
       </StackPanel>
 
-      <ScrollViewer x:Name="SettingsPage" Grid.Row="1" Grid.RowSpan="2" Visibility="Collapsed"
-                    Background="Transparent"
-                    VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
-                    Margin="0,28,0,0">
-        <StackPanel>
-          <TextBlock Text="Settings" FontFamily="Georgia" FontSize="28" Foreground="{StaticResource Ink}"/>
-          <TextBlock Text="General" Margin="0,18,0,10" FontFamily="Georgia" FontSize="20"
-                     Foreground="{StaticResource Gold}"/>
-
+      <Grid x:Name="SettingsPage" Grid.Row="1" Grid.RowSpan="2" Visibility="Collapsed" Margin="0,28,0,0">
+        <Grid.RowDefinitions>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="Auto"/>
+          <RowDefinition Height="*"/>
+          <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+        <TextBlock Text="Settings" FontFamily="Georgia" FontSize="28" Foreground="{StaticResource Ink}"/>
+        <StackPanel x:Name="SettingsTabs" Grid.Row="1" Orientation="Horizontal" Margin="0,18,0,16">
+          <Button x:Name="GeneralTab" Content="General" Margin="0,0,8,0" Click="SettingsTab_Click" Tag="General"/>
+          <Button x:Name="PictureTab" Content="Picture" Margin="0,0,8,0" Click="SettingsTab_Click" Tag="Picture"/>
+          <Button x:Name="CameraTab" Content="Camera" Margin="0,0,8,0" Click="SettingsTab_Click" Tag="Camera"/>
+          <Button x:Name="ShadersTab" Content="Shaders" Click="SettingsTab_Click" Tag="Shaders"/>
+        </StackPanel>
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+          <Grid>
+            <StackPanel x:Name="GeneralPage">
           <Grid Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="90"/>
@@ -113,9 +121,8 @@
             <TextBlock Text="Language" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
             <ComboBox x:Name="LanguageBox" Grid.Column="1" Height="32"/>
           </Grid>
-
-          <TextBlock Text="Picture" Margin="0,16,0,10" FontFamily="Georgia" FontSize="20"
-                     Foreground="{StaticResource Gold}"/>
+            </StackPanel>
+            <StackPanel x:Name="PicturePage" Visibility="Collapsed">
           <Grid Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="90"/>
@@ -144,10 +151,8 @@
           <TextBlock x:Name="RenderHint"
                      Text="The 3D picture only. The window and the HUD stay full size."
                      Margin="0,0,0,8" FontFamily="Segoe UI" FontSize="12" Foreground="#887A6C"/>
-
-          <StackPanel x:Name="CameraSection" Margin="0,8,0,0">
-            <TextBlock Text="Camera" Margin="0,8,0,10" FontFamily="Georgia" FontSize="20"
-                       Foreground="{StaticResource Gold}"/>
+            </StackPanel>
+          <StackPanel x:Name="CameraSection" Visibility="Collapsed">
             <TextBlock Text="The original distance is as close as it gets. Four steps is as far as it goes."
                        Margin="0,0,0,10" FontFamily="Segoe UI" FontSize="12" Foreground="#887A6C"/>
             <Grid Margin="0,0,0,8">
@@ -170,9 +175,7 @@
             </Grid>
           </StackPanel>
 
-          <StackPanel x:Name="ShaderSection" Margin="0,8,0,0">
-            <TextBlock Text="Shaders" Margin="0,8,0,10" FontFamily="Georgia" FontSize="20"
-                       Foreground="{StaticResource Gold}"/>
+          <StackPanel x:Name="ShaderSection" Visibility="Collapsed">
             <Button x:Name="PrecompileButton" Content="Precompile shaders" HorizontalAlignment="Left"
                     Click="Precompile_Click"/>
             <Grid Margin="0,14,0,0">
@@ -187,8 +190,11 @@
                          TextAlignment="Right"/>
             </Grid>
           </StackPanel>
+          </Grid>
+        </ScrollViewer>
 
-          <StackPanel Orientation="Horizontal" Margin="0,22,0,0">
+        <StackPanel Grid.Row="3" Margin="0,22,0,0">
+          <StackPanel Orientation="Horizontal">
             <Button x:Name="SaveSettingsButton" Content="Save" MinWidth="220" Height="48"
                     FontFamily="Georgia" FontSize="18" Foreground="#1A140C" Click="SaveSettings_Click">
               <Button.Template>
@@ -211,7 +217,7 @@
           <TextBlock x:Name="SettingsStatus" Margin="0,14,0,8" FontFamily="Segoe UI" FontSize="13"
                      Foreground="{StaticResource Muted}" TextWrapping="Wrap"/>
         </StackPanel>
-      </ScrollViewer>
+      </Grid>
 
       <Grid x:Name="SavesPage" Grid.Row="1" Visibility="Collapsed" VerticalAlignment="Top" Margin="0,28,0,0">
         <Grid.RowDefinitions>

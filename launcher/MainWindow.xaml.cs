@@ -24,6 +24,7 @@ public partial class MainWindow : Window
     private int _draftFarther = 0x21;
     private int _draftCloser = 0x22;
     private int _keyCapture;
+    private string _settingsTab = "General";
     private Process? _shaders;
     private readonly string _shaderLog = Path.Combine(AppContext.BaseDirectory, "precompile-progress.txt");
 
@@ -237,6 +238,34 @@ public partial class MainWindow : Window
         SavesStatus.Text = error ?? "Save imported. The previous one is in _SaveData\\_backups.";
     }
 
+    private void SettingsTab_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button button && button.Tag is string name)
+            ShowSettingsTab(name);
+    }
+
+    private void ShowSettingsTab(string name)
+    {
+        _settingsTab = name;
+        GeneralPage.Visibility = name == "General" ? Visibility.Visible : Visibility.Collapsed;
+        PicturePage.Visibility = name == "Picture" ? Visibility.Visible : Visibility.Collapsed;
+        CameraSection.Visibility = name == "Camera" ? Visibility.Visible : Visibility.Collapsed;
+        ShaderSection.Visibility = name == "Shaders" ? Visibility.Visible : Visibility.Collapsed;
+        StyleSettingsTab(GeneralTab, name == "General");
+        StyleSettingsTab(PictureTab, name == "Picture");
+        StyleSettingsTab(CameraTab, name == "Camera");
+        StyleSettingsTab(ShadersTab, name == "Shaders");
+    }
+
+    private void StyleSettingsTab(Button tab, bool selected)
+    {
+        tab.Foreground = (System.Windows.Media.Brush)FindResource(selected ? "Gold" : "Muted");
+        tab.BorderBrush = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(selected ? (byte)0xFF : (byte)0x44, 0xC6, 0xA1, 0x5B));
+        tab.Background = new System.Windows.Media.SolidColorBrush(
+            System.Windows.Media.Color.FromArgb(selected ? (byte)0x33 : (byte)0x00, 0xC6, 0xA1, 0x5B));
+    }
+
     private void OpenSettings(bool promptRun)
     {
         _promptRun = promptRun;
@@ -251,9 +280,13 @@ public partial class MainWindow : Window
         var extras = promptRun ? Visibility.Collapsed : Visibility.Visible;
         RenderRow.Visibility = extras;
         RenderHint.Visibility = extras;
-        ShaderSection.Visibility = extras;
-        CameraSection.Visibility = extras;
+        CameraTab.Visibility = extras;
+        ShadersTab.Visibility = extras;
         ManageSavesButton.Visibility = extras;
+        var tab = _settingsTab;
+        if (promptRun && (tab == "Camera" || tab == "Shaders"))
+            tab = "General";
+        ShowSettingsTab(tab);
         _draftFarther = _settings.CameraFartherKey;
         _draftCloser = _settings.CameraCloserKey;
         _keyCapture = 0;
