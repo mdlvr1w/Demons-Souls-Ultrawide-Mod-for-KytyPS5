@@ -14,7 +14,8 @@ public partial class MainWindow : Window
     private readonly LauncherSettings _settings = LauncherSettings.Load();
     private bool _ready;
     private bool _promptRun;
-    private bool _draftUltrawide = true;
+    private int _draftWidth = 3440;
+    private int _draftHeight = 1440;
     private int _draftPercent = 100;
     private int _awaitingProcess;
     private int _cameraPid;
@@ -29,11 +30,12 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        _draftUltrawide = _settings.Ultrawide;
+        _draftWidth = _settings.Width;
+        _draftHeight = _settings.Height;
         _draftPercent = Math.Clamp(_settings.RenderPercent, 50, 100);
         RenderSlider.Value = _draftPercent;
+        FillResolutions();
         ShowRender(_draftPercent);
-        ApplyMode(_draftUltrawide);
         foreach (var name in ShaderProgress.Languages)
             LanguageBox.Items.Add(name);
         LanguageBox.SelectedIndex = Math.Clamp(_settings.Language, 0, ShaderProgress.Languages.Length - 1);
@@ -137,10 +139,12 @@ public partial class MainWindow : Window
         GameBox.Text = picked;
     }
 
-    private void Mode_Click(object sender, RoutedEventArgs e)
+    private void Resolution_Changed(object sender, SelectionChangedEventArgs e)
     {
-        _draftUltrawide = sender is Button { Tag: string tag } && tag == "wide";
-        ApplyMode(_draftUltrawide);
+        if (!_ready || ResolutionBox.SelectedItem is not ResolutionChoice choice)
+            return;
+        _draftWidth = choice.Width;
+        _draftHeight = choice.Height;
         ShowRender(_draftPercent);
     }
 
@@ -238,10 +242,11 @@ public partial class MainWindow : Window
         _promptRun = promptRun;
         KytyBox.Text = _settings.KytyFolder;
         GameBox.Text = _settings.GameFolder;
-        _draftUltrawide = _settings.Ultrawide;
+        _draftWidth = _settings.Width;
+        _draftHeight = _settings.Height;
         _draftPercent = Math.Clamp(_settings.RenderPercent, 50, 100);
         RenderSlider.Value = _draftPercent;
-        ApplyMode(_draftUltrawide);
+        FillResolutions();
         ShowRender(_draftPercent);
         var extras = promptRun ? Visibility.Collapsed : Visibility.Visible;
         RenderRow.Visibility = extras;
@@ -273,7 +278,9 @@ public partial class MainWindow : Window
     {
         KytyFolder = KytyBox.Text.Trim(),
         GameFolder = GameBox.Text.Trim(),
-        Ultrawide = _draftUltrawide,
+        Ultrawide = Picture.IsWide(_draftWidth, _draftHeight),
+        Width = _draftWidth,
+        Height = _draftHeight,
         RenderPercent = _draftPercent,
         Language = LanguageBox.SelectedIndex < 0 ? _settings.Language : LanguageBox.SelectedIndex,
         ShadersComplete = _settings.ShadersComplete,
@@ -287,6 +294,8 @@ public partial class MainWindow : Window
         _settings.KytyFolder = draft.KytyFolder;
         _settings.GameFolder = draft.GameFolder;
         _settings.Ultrawide = draft.Ultrawide;
+        _settings.Width = draft.Width;
+        _settings.Height = draft.Height;
         _settings.RenderPercent = draft.RenderPercent;
         _settings.Language = draft.Language;
         _settings.ShadersComplete = draft.ShadersComplete;
@@ -308,12 +317,13 @@ public partial class MainWindow : Window
         {
             var running = string.Join(",", System.Diagnostics.Process.GetProcessesByName("kyty_emulator").Select(p => p.Id));
             GameHost.Play(_settings);
-            if (!_settings.Ultrawide)
-                StatusText.Text = "16:9 started.";
+            var (width, height) = Picture.Resolve(_settings);
+            if (!Picture.IsWide(width, height))
+                StatusText.Text = $"{width}×{height} started.";
             else if (LiveFix.StartWatcher(running))
-                StatusText.Text = "Ultrawide started.";
+                StatusText.Text = $"{width}×{height} started.";
             else
-                StatusText.Text = "Ultrawide started. The preview fix did not attach.";
+                StatusText.Text = $"{width}×{height} started. The preview fix did not attach.";
             _awaitingProcess = 8;
             ShowRunning(true);
         }
@@ -614,27 +624,27 @@ public partial class MainWindow : Window
         Title = info.Title;
     }
 
-    private void ApplyMode(bool ultrawide)
+    private void FillResolutions()
     {
-        StyleMode(WideButton, !ultrawide);
-        StyleMode(UltraButton, ultrawide);
-    }
-
-    private static void StyleMode(Button button, bool selected)
-    {
-        button.Background = selected
-            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x55, 0xC6, 0xA1, 0x5B))
-            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x22, 0xFF, 0xFF, 0xFF));
-        button.BorderBrush = selected
-            ? new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(0xC6, 0xA1, 0x5B))
-            : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(0x66, 0xC6, 0xA1, 0x5B));
+        var modes = DisplayModes.List().ToList();
+        if (Picture.Fits(_draftWidth, _draftHeight)
+            && !modes.Any(size => size.Width == _draftWidth && size.Height == _draftHeight))
+        {
+            modes.Add((_draftWidth, _draftHeight));
+            modes = modes.OrderBy(size => size.Width).ThenBy(size => size.Height).ToList();
+        }
+        ResolutionBox.Items.Clear();
+        foreach (var size in modes)
+            ResolutionBox.Items.Add(new ResolutionChoice(size.Width, size.Height));
+        ResolutionBox.SelectedItem = ResolutionBox.Items.Cast<ResolutionChoice>()
+            .FirstOrDefault(choice => choice.Width == _draftWidth && choice.Height == _draftHeight);
     }
 
     private void ShowRender(int percent)
     {
         if (RenderLabel == null)
             return;
-        var (width, height) = GameHost.RenderSize(percent, _draftUltrawide);
+        var (width, height) = GameHost.RenderSize(percent, _draftWidth, _draftHeight);
         RenderLabel.Text = $"{percent}%   ·   {width}×{height}";
     }
 

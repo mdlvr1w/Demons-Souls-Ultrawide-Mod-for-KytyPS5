@@ -1,6 +1,6 @@
 # Demon's Souls ultrawide
 
-A patch and a launcher for the PS5 remake of Demon's Souls on [KytyPS5 v20261013](https://github.com/chenxiao07/KytyPS5/releases/tag/v20261013). Gameplay fills a 3440×1440 screen, wider on both sides, without stretch. The HUD stays 16:9 and centered.
+A patch and a launcher for the PS5 remake of Demon's Souls on [KytyPS5 v20261013](https://github.com/chenxiao07/KytyPS5/releases/tag/v20261013). On a screen wider than 16:9, gameplay fills the width without stretch. The interface stays 16:9 and centered.
 
 This repository does not include the game or the emulator. The game files are not modified.
 
@@ -8,7 +8,7 @@ The patch matches title `PPSA01341`, version `01.007.000`, on that Kyty release.
 
 ## Download
 
-The launcher is ready to run from the [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.0.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` in that same folder.
+The launcher is ready to run from the [1.1.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.1.0). Unzip it and start `DemonsSoulsLauncher.exe`. Leave `ultrawide-3440x1440.json` and `codex_ui_vulkan.dll` in that same folder.
 
 ## You need
 
@@ -17,7 +17,7 @@ The launcher is ready to run from the [1.0.0 release](https://github.com/mdlvr1w
 - Your own unpacked game folder for that title and version. It contains `eboot.bin` and `sce_sys`
 - The .NET 8 SDK, only if you build the launcher yourself. The downloaded launcher does not need it
 
-Ultrawide is made for a 3440×1440 display. The launcher can also start the game at 1920×1080, with the picture fitted and this patch left off.
+The launcher lists the resolutions of the primary display that are 16:9 or wider. A 16:9 choice fits the picture and leaves the patch off. A wider choice widens the world and keeps the interface centered. 1920×1080 and 3440×1440 stay in the list. The [1.0.0 release](https://github.com/mdlvr1w/Demons-Souls-Ultrawide-Mod-for-KytyPS5/releases/tag/v1.0.0) is the previous interface fix.
 
 ## Build
 
@@ -35,7 +35,7 @@ Run `DemonsSoulsLauncher.exe` here:
 launcher\bin\Release\net8.0-windows\win-x64\publish\
 ```
 
-The patch is copied into that folder next to the exe. Leave the two together.
+The patch and `codex_ui_vulkan.dll` are copied into that folder next to the exe. Leave the three together.
 
 ## Play
 
@@ -44,7 +44,7 @@ The first time, choose the Kyty folder and the game folder, then choose Save and
 Settings:
 
 - **Language.** The same list Kyty uses. English (United States) is the default.
-- **Picture.** Ultrawide or 16:9. The render slider scales the 3D picture from 50% to 100%. The window and the HUD stay full size. At 100% the game uses the full height of the mode you picked.
+- **Picture.** A resolution of 16:9 or wider. The render slider scales the 3D picture from 50% to 100%. The window and the interface stay full size. At 100% the game uses the full height of the resolution you picked.
 - **Camera.** Page Up moves the follow camera farther. Page Down steps back toward the original. The original distance is as close as it gets, and four steps is as far as it goes. The chosen step is saved and applied the next time the launcher sees the game. If the game is already on a farther step, that step is kept and Page Up will not add another four. Both keys can be changed.
 - **Shaders.** Precompile once for this version of the game. One cache covers 16:9, ultrawide, and the render slider. A cache Kyty already built is recognized.
 - **Manage savegames.** Export and import. Both wait until the game is closed.
@@ -57,7 +57,7 @@ The launcher also corrects the inventory item preview, and it applies the camera
 
 The game files and the save stay where they are. Removing the mod is deleting this folder. Nothing is copied into the game.
 
-The opening logos are left as the game shows them. On the in-game settings page, the save-and-quit words sit toward the right of the button. The button and its glow are in place.
+The opening logos are left as the game shows them. The interface, including its labels and highlights, moves as one picture.
 
 ## Why I made this
 

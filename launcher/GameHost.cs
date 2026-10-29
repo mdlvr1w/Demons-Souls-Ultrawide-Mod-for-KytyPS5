@@ -16,8 +16,13 @@ public static class GameHost
     public static string ScriptPath(string kytyFolder) =>
         Path.Combine(kytyFolder, "run-windows.ps1");
 
+    public const string ShaderHashes = "879156b801917c3f,253e4085c27e661c";
+
     public static string PatchPath() =>
         Path.Combine(AppContext.BaseDirectory, "ultrawide-3440x1440.json");
+
+    public static string VulkanPath() =>
+        Path.Combine(AppContext.BaseDirectory, "codex_ui_vulkan.dll");
 
     public static bool PathsReady(LauncherSettings settings, out string reason)
     {
@@ -43,21 +48,25 @@ public static class GameHost
     {
         if (!PathsReady(settings, out reason))
             return false;
-        if (settings.Ultrawide && !File.Exists(PatchPath()))
+        var (width, height) = Picture.Resolve(settings);
+        if (!Picture.Fits(width, height))
         {
-            reason = "The ultrawide patch is missing next to this launcher.";
+            reason = "Choose a resolution of 16:9 or wider.";
+            return false;
+        }
+        if (Picture.IsWide(width, height) && !File.Exists(VulkanPath()))
+        {
+            reason = "The composition DLL is missing next to this launcher.";
             return false;
         }
         reason = "";
         return true;
     }
 
-    public static (int Width, int Height) RenderSize(int percent, bool ultrawide)
+    public static (int Width, int Height) RenderSize(int percent, int fullWidth, int fullHeight)
     {
         percent = Math.Clamp(percent, 50, 100);
-        var fullWidth = ultrawide ? 3440 : 1920;
-        var fullHeight = ultrawide ? 1440 : 1080;
-        var minHeight = ultrawide ? 720 : 540;
+        var minHeight = Math.Max(1, fullHeight / 2);
         var height = (int)Math.Round(fullHeight * percent / 100.0);
         height = Math.Clamp(height, minHeight, fullHeight);
         var width = (int)Math.Round(fullWidth * percent / 100.0);
@@ -83,34 +92,42 @@ public static class GameHost
         start.ArgumentList.Add("-Language");
         start.ArgumentList.Add(Math.Clamp(settings.Language, 0, 29).ToString());
         start.ArgumentList.Add("-Fullscreen");
-        if (settings.Ultrawide)
+        var (width, height) = Picture.Resolve(settings);
+        var wide = Picture.IsWide(width, height);
+        start.ArgumentList.Add("-Width");
+        start.ArgumentList.Add(width.ToString());
+        start.ArgumentList.Add("-Height");
+        start.ArgumentList.Add(height.ToString());
+        if (wide)
         {
-            start.ArgumentList.Add("-Width");
-            start.ArgumentList.Add("3440");
-            start.ArgumentList.Add("-Height");
-            start.ArgumentList.Add("1440");
             start.ArgumentList.Add("-Patch");
             start.ArgumentList.Add(PatchPath());
+            start.Environment["SDL_VULKAN_LIBRARY"] = VulkanPath();
+            start.Environment["CODEX_UI_SHADER_HASH"] = ShaderHashes;
+            start.Environment["CODEX_UI_SCALE"] = "1";
+            start.Environment["CODEX_UI_OUTPUT_WIDTH"] = Picture.OutputWidth(width, height).ToString();
         }
         else
         {
-            start.ArgumentList.Add("-Width");
-            start.ArgumentList.Add("1920");
-            start.ArgumentList.Add("-Height");
-            start.ArgumentList.Add("1080");
             start.ArgumentList.Add("-AspectFit");
         }
 
-        var fullHeight = settings.Ultrawide ? 1440 : 1080;
-        var (_, height) = RenderSize(settings.RenderPercent, settings.Ultrawide);
-        if (height < fullHeight)
+        var fullHeight = height;
+        var (_, renderHeight) = RenderSize(settings.RenderPercent, width, height);
+        if (renderHeight < fullHeight)
         {
             start.ArgumentList.Add("-RenderHeight");
-            start.ArgumentList.Add(height.ToString());
+            start.ArgumentList.Add(renderHeight.ToString());
         }
 
         return start;
     }
 
-    public static void Play(LauncherSettings settings) => Process.Start(BuildStart(settings));
+    public static void Play(LauncherSettings settings)
+    {
+        var (width, height) = Picture.Resolve(settings);
+        if (Picture.IsWide(width, height))
+            UltrawidePatch.Write(PatchPath(), width, height);
+        Process.Start(BuildStart(settings));
+    }
 }

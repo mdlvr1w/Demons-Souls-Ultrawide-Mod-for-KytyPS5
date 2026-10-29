@@ -8,6 +8,8 @@ public sealed class LauncherSettings
     public string KytyFolder { get; set; } = "";
     public string GameFolder { get; set; } = "";
     public bool Ultrawide { get; set; } = true;
+    public int Width { get; set; }
+    public int Height { get; set; }
     public int RenderPercent { get; set; } = 100;
     public int Language { get; set; } = 1;
     public bool ShadersComplete { get; set; }
@@ -23,22 +25,51 @@ public sealed class LauncherSettings
         try
         {
             if (!File.Exists(FilePath))
-                return new LauncherSettings();
+                return Fresh();
             var loaded = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(FilePath));
-            return loaded ?? new LauncherSettings();
+            if (loaded == null)
+                return Fresh();
+            loaded.Normalize();
+            return loaded;
         }
         catch (IOException)
         {
-            return new LauncherSettings();
+            return Fresh();
         }
         catch (JsonException)
         {
-            return new LauncherSettings();
+            return Fresh();
         }
+    }
+
+    static LauncherSettings Fresh()
+    {
+        var settings = new LauncherSettings();
+        settings.Normalize();
+        return settings;
+    }
+
+    public void Normalize()
+    {
+        if (!Picture.Fits(Width, Height))
+        {
+            if (Ultrawide)
+            {
+                Width = 3440;
+                Height = 1440;
+            }
+            else
+            {
+                Width = 1920;
+                Height = 1080;
+            }
+        }
+        Ultrawide = Picture.IsWide(Width, Height);
     }
 
     public void Save()
     {
+        Normalize();
         RenderPercent = Math.Clamp(RenderPercent, 50, 100);
         Language = Math.Clamp(Language, 0, 29);
         CameraStep = Math.Clamp(CameraStep, 0, 4);

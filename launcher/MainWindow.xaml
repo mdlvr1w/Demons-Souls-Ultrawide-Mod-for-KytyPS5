@@ -116,10 +116,16 @@
 
           <TextBlock Text="Picture" Margin="0,16,0,10" FontFamily="Georgia" FontSize="20"
                      Foreground="{StaticResource Gold}"/>
-          <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-            <Button x:Name="WideButton" Content="16:9" MinWidth="120" Click="Mode_Click" Tag="fit"/>
-            <Button x:Name="UltraButton" Content="Ultrawide" MinWidth="140" Margin="10,0,0,0" Click="Mode_Click" Tag="wide"/>
-          </StackPanel>
+          <Grid Margin="0,0,0,8">
+            <Grid.ColumnDefinitions>
+              <ColumnDefinition Width="90"/>
+              <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <TextBlock Text="Resolution" VerticalAlignment="Center" Foreground="{StaticResource Muted}" FontFamily="Segoe UI"/>
+            <ComboBox x:Name="ResolutionBox" Grid.Column="1" Height="32" SelectionChanged="Resolution_Changed"/>
+          </Grid>
+          <TextBlock Text="16:9 fills the window. A wider screen keeps the interface at 16:9 in the center."
+                     Margin="0,0,0,12" FontFamily="Segoe UI" FontSize="12" Foreground="#887A6C"/>
           <Grid x:Name="RenderRow" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
               <ColumnDefinition Width="90"/>

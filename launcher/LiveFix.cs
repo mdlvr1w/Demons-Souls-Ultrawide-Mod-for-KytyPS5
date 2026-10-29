@@ -5,35 +5,12 @@ using System.Text;
 
 namespace DemonsSoulsLauncher;
 
-// The item preview number is not in the game file. It is copied into the
-// graphics buffer, so this watches memcpy and rewrites the exact pair.
-// The save-and-quit words are right-aligned to the row's extra width.
-// Ultrawide leaves that extra near 1001.6, so the words start at the
-// gold bar's right tip. That extra also places the pulse, so the watcher
-// leaves it alone. The size function stays as the patch left it: writing
-// the button from inside that function makes layout call itself until
-// the stack overflows.
+// The item preview is drawn into the world image. Centering the interface
+// leaves that model beside its panel, so this watches one memcpy shape and
+// rewrites the two camera values after the copy.
 public static class LiveFix
 {
-    const ulong Hook = 0x900E0A2BB;
-    const ulong Vtable = 0x9025D8430;
-    const ulong MarkCard = 0x908006628;
-    const ulong MarkWrap = 0x908006630;
-    const ulong MarkRow = 0x908006638;
-    const ulong MarkGold = 0x908006640;
-    const ulong MarkHits = 0x908006648;
     const int IatRva = 0x12F1BA0;
-    const ulong HostLo = 0x10000000000UL;
-    const ulong HostHi = 0x20000000000UL;
-    const ulong GpuLo = 0x200000000UL;
-    const ulong GpuHi = 0x210000000UL;
-
-    static readonly byte[] HookOn = Convert.FromHexString("e940b91f07909090");
-    static readonly byte[] HookOff = Convert.FromHexString("c5f858c14883c408");
-    static readonly byte[] VtableBytes = BitConverter.GetBytes(Vtable);
-    static readonly byte[] Pair = Convert.FromHexString("3d6f9d3f");
-    static readonly byte[] Aspect = Convert.FromHexString("35792240");
-    static readonly byte[] Shifted = Convert.FromHexString("ad116e3f");
 
     public static bool StartWatcher(string knownProcessIds)
     {
@@ -104,27 +81,33 @@ public static class LiveFix
         }
         try
         {
-            if (!WaitForPatch(process, TimeSpan.FromMinutes(3)))
-            {
-                Log("patch hook not seen");
-                return;
-            }
+            var until = DateTime.UtcNow.AddMinutes(3);
             ulong counter = 0;
-            if (!Suspend(process))
+            while (DateTime.UtcNow < until && IsRunning(pid))
             {
-                Log("suspend failed");
+                if (!Suspend(process))
+                {
+                    Log("suspend failed");
+                    return;
+                }
+                try
+                {
+                    counter = InstallMemcpy(process);
+                }
+                finally
+                {
+                    Resume(process);
+                }
+                if (counter != 0)
+                    break;
+                Thread.Sleep(250);
+            }
+            if (counter == 0)
+            {
+                Log("preview hook not installed");
                 return;
             }
-            try
-            {
-                counter = InstallMemcpy(process);
-            }
-            finally
-            {
-                Resume(process);
-            }
-            if (counter != 0)
-                WatchPreview(process, pid, counter);
+            WatchPreview(process, pid, counter);
         }
         finally
         {
@@ -136,11 +119,7 @@ public static class LiveFix
     {
         var last = uint.MaxValue;
         var loggedZero = false;
-        var loggedMiss = false;
         var started = DateTime.UtcNow;
-        var seen = new SaveWidgets();
-        var attempts = 0;
-        var marks = 0u;
         while (IsRunning(pid))
         {
             Thread.Sleep(2000);
@@ -156,156 +135,18 @@ public static class LiveFix
                 Log("preview patches 0");
                 loggedZero = true;
             }
-            if (attempts >= 3)
-                continue;
-            var hits = ReadU32(process, MarkHits);
-            if (hits != marks)
-            {
-                Log("save marks " + hits);
-                marks = hits;
-            }
-            if (seen.Card != 0)
-            {
-                attempts++;
-                if (!StillBaked(process, seen))
-                    Log("save shape changed before the write");
-                else if (RepairSave(process, seen))
-                    Log("save button corrected");
-                seen = new SaveWidgets();
-                continue;
-            }
-            var found = new SaveWidgets
-            {
-                Card = ReadU64(process, MarkCard),
-                Wrap = ReadU64(process, MarkWrap),
-                Row = ReadU64(process, MarkRow),
-                Gold = ReadU64(process, MarkGold),
-            };
-            if (found.Card == 0 || found.Wrap == 0 || found.Row == 0 || found.Gold == 0)
-            {
-                if (!loggedMiss && DateTime.UtcNow - started > TimeSpan.FromSeconds(20) && hits == 0)
-                {
-                    Log("save button not seen");
-                    loggedMiss = true;
-                }
-                continue;
-            }
-            if (!StillBaked(process, found))
-                continue;
-            loggedMiss = false;
-            Log($"save button seen {found.Card:X}");
-            seen = found;
         }
-    }
-
-    readonly struct SaveWidgets
-    {
-        public ulong Card { get; init; }
-        public ulong Wrap { get; init; }
-        public ulong Row { get; init; }
-        public ulong Gold { get; init; }
-    }
-
-    static bool RepairSave(IntPtr process, SaveWidgets widgets)
-    {
-        if (!Suspend(process))
-        {
-            Log("save suspend failed");
-            return false;
-        }
-        var suspended = true;
-        var hookOff = false;
-        try
-        {
-            if (!HookOn.AsSpan().SequenceEqual(Read(process, Hook, HookOn.Length)))
-            {
-                Log("save hook is not the patch");
-                return false;
-            }
-            if (!StillBaked(process, widgets))
-            {
-                Log("save shape changed before the write");
-                return false;
-            }
-            if (!Write(process, Hook, HookOff))
-            {
-                Log("save hook off failed");
-                return false;
-            }
-            hookOff = true;
-            WriteFloat(process, widgets.Card + 0x2E4, 10f);
-            WriteFloat(process, widgets.Card + 0x2FC, 10f);
-            WriteFloat(process, widgets.Card + 0x304, 1021.6f);
-            WriteFloat(process, widgets.Card + 0x2EC, 61.6f);
-            WriteFloat(process, widgets.Wrap + 0x304, 1021.6f);
-            WriteFloat(process, widgets.Wrap + 0x2EC, 921.6f);
-            WriteFloat(process, widgets.Row + 0x304, 1021.6f);
-            WriteFloat(process, widgets.Row + 0x2EC, 921.6f);
-            WriteFloat(process, widgets.Gold + 0x2E4, 292f);
-            WriteFloat(process, widgets.Gold + 0x2FC, 292f);
-            if (Math.Abs(ReadFloat(process, widgets.Card + 0x304) - 1021.6f) > 1f)
-            {
-                Log("save write did not land");
-                return false;
-            }
-            Resume(process);
-            suspended = false;
-            Thread.Sleep(100);
-            if (!Suspend(process))
-            {
-                Log("save second suspend failed");
-                return false;
-            }
-            suspended = true;
-            var width = ReadFloat(process, widgets.Card + 0x304);
-            var goldX = ReadFloat(process, widgets.Gold + 0x2E4);
-            if (Math.Abs(width - 1021.6f) > 1f || Math.Abs(goldX - 292f) > 1f)
-            {
-                Log($"save did not stick width {width:0.0} gold {goldX:0.0}");
-                return false;
-            }
-            WriteFloat(process, widgets.Card + 0x2EC, 141.6f);
-            WriteFloat(process, widgets.Wrap + 0x2EC, 971.6f);
-            return true;
-        }
-        finally
-        {
-            if (hookOff)
-                Write(process, Hook, HookOn);
-            if (suspended)
-                Resume(process);
-        }
-    }
-
-    static bool StillBaked(IntPtr process, SaveWidgets widgets)
-    {
-        if (ReadU64(process, widgets.Card) != Vtable || ReadU64(process, widgets.Gold) != Vtable)
-            return false;
-        if (ReadU64(process, widgets.Gold + 0x2C8) != widgets.Row)
-            return false;
-        var cardX = ReadFloat(process, widgets.Card + 0x2E4);
-        var cardWidth = ReadFloat(process, widgets.Card + 0x304);
-        var goldX = ReadFloat(process, widgets.Gold + 0x2E4);
-        return cardX is < -15 and > -45
-            && cardWidth is > 1090 and < 1115
-            && goldX is > 310 and < 360;
     }
 
     static ulong InstallMemcpy(IntPtr process)
     {
         var modules = ModuleBases(process);
         if (modules.Count == 0)
-        {
-            Log("no modules");
             return 0;
-        }
         var slot = modules[0] + (ulong)IatRva;
         var current = ReadU64(process, slot);
         if (current == 0 || !InModule(process, current, "VCRUNTIME140"))
-        {
-            Log($"memcpy slot {current:X} is not VCRUNTIME140");
             return 0;
-        }
         var code = BuildMemcpyStub();
         var memory = VirtualAllocEx(process, 0, 0x1000, 0x3000, 0x40);
         if (memory == 0)
@@ -336,72 +177,8 @@ public static class LiveFix
         return memory + (ulong)(code.Length - 4);
     }
 
-    static byte[] BuildMemcpyStub()
-    {
-        var emit = new Emit();
-        emit.Raw(0x49, 0x83, 0xF8, 0x18);
-        emit.Jcc(0x82, "go");
-        emit.Raw(0x49, 0x81, 0xF8, 0x00, 0x00, 0x01, 0x00);
-        emit.Jcc(0x87, "go");
-        emit.Raw(0x50);
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(HostLo));
-        emit.Raw(0x48, 0x39, 0xC2);
-        emit.Jcc(0x82, "gpu_src");
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(HostHi));
-        emit.Raw(0x48, 0x39, 0xC2);
-        emit.Jcc(0x82, "scan");
-        emit.Label("gpu_src");
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(GpuLo));
-        emit.Raw(0x48, 0x39, 0xC2);
-        emit.Jcc(0x82, "gpu_dst");
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(GpuHi));
-        emit.Raw(0x48, 0x39, 0xC2);
-        emit.Jcc(0x82, "scan");
-        emit.Label("gpu_dst");
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(GpuLo));
-        emit.Raw(0x48, 0x39, 0xC1);
-        emit.Jcc(0x82, "pop");
-        emit.Raw(0x48, 0xB8);
-        emit.Raw(BitConverter.GetBytes(GpuHi));
-        emit.Raw(0x48, 0x39, 0xC1);
-        emit.Jcc(0x83, "pop");
-        emit.Label("scan");
-        emit.Raw(0x41, 0x52);
-        emit.Raw(0x4C, 0x8B, 0xD2);
-        emit.Raw(0x4A, 0x8D, 0x44, 0x02, 0xF4);
-        emit.Label("loop");
-        emit.Raw(0x4C, 0x3B, 0xD0);
-        emit.Jcc(0x87, "done");
-        emit.Raw(0x41, 0x81, 0x3A);
-        emit.Raw(Pair);
-        emit.Jcc(0x85, "step");
-        emit.Raw(0x41, 0x81, 0x7A, 0x08);
-        emit.Raw(Aspect);
-        emit.Jcc(0x85, "step");
-        emit.Raw(0x41, 0xC7, 0x02);
-        emit.Raw(Shifted);
-        emit.Raw(0xFF, 0x05);
-        emit.Disp("hits");
-        emit.Label("step");
-        emit.Raw(0x49, 0x83, 0xC2, 0x04);
-        emit.Jmp("loop");
-        emit.Label("done");
-        emit.Raw(0x41, 0x5A);
-        emit.Label("pop");
-        emit.Raw(0x58);
-        emit.Label("go");
-        emit.Raw(0xFF, 0x25, 0x00, 0x00, 0x00, 0x00);
-        emit.Raw(new byte[8]);
-        emit.Label("hits");
-        emit.Raw(new byte[4]);
-        emit.Bind();
-        return emit.Code.ToArray();
-    }
+    static byte[] BuildMemcpyStub() => Convert.FromHexString(
+        "4981f8700c00000f859b00000049ba00000000020000004c39d10f828800000049ba00000010020000004c39d10f837500000081bacc0000003d6f9d3f0f856500000081bad4000000357922400f855500000081ba4c0100003d6f9d3f0f854500000081ba54010000357922400f85350000004883ec3848894c2420ff152c0000004c8b54242041c782cc000000ad116e3f41c7824c010000ad116e3fff05130000004883c438c3ff2500000000000000000000000000000000");
 
     static int WaitForNewEmulator(HashSet<int> known, TimeSpan timeout)
     {
@@ -416,18 +193,6 @@ public static class LiveFix
             Thread.Sleep(250);
         }
         return 0;
-    }
-
-    static bool WaitForPatch(IntPtr process, TimeSpan timeout)
-    {
-        var until = DateTime.UtcNow + timeout;
-        while (DateTime.UtcNow < until)
-        {
-            if (HookOn.SequenceEqual(Read(process, Hook, HookOn.Length)))
-                return true;
-            Thread.Sleep(250);
-        }
-        return false;
     }
 
     static bool IsRunning(int pid)
@@ -511,58 +276,8 @@ public static class LiveFix
         return data.Length == 4 ? BitConverter.ToUInt32(data, 0) : 0;
     }
 
-    static float ReadFloat(IntPtr process, ulong address)
-    {
-        var data = Read(process, address, 4);
-        return data.Length == 4 ? BitConverter.ToSingle(data, 0) : float.NaN;
-    }
-
-    static void WriteFloat(IntPtr process, ulong address, float value) =>
-        Write(process, address, BitConverter.GetBytes(value));
-
     static bool Write(IntPtr process, ulong address, byte[] data) =>
         WriteProcessMemory(process, address, data, data.Length, out var written) && written == data.Length;
-
-    sealed class Emit
-    {
-        public List<byte> Code { get; } = new();
-        readonly List<(int At, string Name)> _fix = new();
-        readonly Dictionary<string, int> _labels = new();
-
-        public void Raw(params byte[] bytes) => Code.AddRange(bytes);
-
-        public void Label(string name) => _labels[name] = Code.Count;
-
-        public void Jcc(byte op, string name)
-        {
-            Code.Add(0x0F);
-            Code.Add(op);
-            Disp(name);
-        }
-
-        public void Jmp(string name)
-        {
-            Code.Add(0xE9);
-            Disp(name);
-        }
-
-        public void Disp(string name)
-        {
-            _fix.Add((Code.Count, name));
-            Code.AddRange(new byte[4]);
-        }
-
-        public void Bind()
-        {
-            foreach (var (at, name) in _fix)
-            {
-                var rel = _labels[name] - (at + 4);
-                var bytes = BitConverter.GetBytes(rel);
-                for (var i = 0; i < 4; i++)
-                    Code[at + i] = bytes[i];
-            }
-        }
-    }
 
     [DllImport("kernel32", SetLastError = true)]
     static extern IntPtr OpenProcess(uint access, bool inherit, int pid);
