@@ -1,0 +1,95 @@
+{
+  "release": "linux-v1.0.0",
+  "files": [
+    {
+      "path": ".gitignore",
+      "bytes": 40,
+      "sha256": "a158463cdab04893b6a852ad0e248a3cd50b20f4a46586d3ffc6ad10367a8ef8"
+    },
+    {
+      "path": "COPYING-INTEGRATION-GPL-2.0.txt",
+      "bytes": 18091,
+      "sha256": "f9c375a1be4a41f7b70301dd83c91cb89e41567478859b77eef375a52d782505"
+    },
+    {
+      "path": "LICENSE",
+      "bytes": 1062,
+      "sha256": "c9980b64c9ac14dce25e02da687dd016a342dbe0f757afcb4251fa1fc53d4f5e"
+    },
+    {
+      "path": "README.md",
+      "bytes": 8906,
+      "sha256": "178ca9f04cb7e2c198176e7513b5528956d0ea387f588006d5ef10c755a43e36"
+    },
+    {
+      "path": "build-kyty.sh",
+      "bytes": 1568,
+      "sha256": "efab5c4385ea616cfba25d7ca8d4edadda6c207519c543cafd8852539a7e4b53"
+    },
+    {
+      "path": "custom-launcher/backend.py",
+      "bytes": 9866,
+      "sha256": "0cad7015df110c305489f441ba27b432bf4feb841b39406e4a6d978d0e04494c"
+    },
+    {
+      "path": "custom-launcher/chevron.svg",
+      "bytes": 160,
+      "sha256": "7c2d98ce3a56235439975ce7fb326fad1dca24ebf853538d4f4e70d547726e36"
+    },
+    {
+      "path": "custom-launcher/launcher.py",
+      "bytes": 24288,
+      "sha256": "63a8d73bfbb9f1f22edd12e75a7d310bb8eaa6b9716afb5c7c7f734ca3d92f26"
+    },
+    {
+      "path": "custom-launcher/precompile-job.py",
+      "bytes": 4935,
+      "sha256": "7c46f16389f4a430f826cf99fd463dde586f933ffbc6f39e12a0e765285a272f"
+    },
+    {
+      "path": "custom-launcher/session-runner.py",
+      "bytes": 1771,
+      "sha256": "c46ad8394329c2338f62fec516c38a25101e9ec8ef45615d8e1a6eeb24c1923a"
+    },
+    {
+      "path": "install-menu-entry.py",
+      "bytes": 1254,
+      "sha256": "7ca06d5e49ff6799ff1dbc965274d272db32eff4d201038157bd1a5bb3693604"
+    },
+    {
+      "path": "kyty-linux-mod.patch",
+      "bytes": 31073,
+      "sha256": "f572095dd2d040abc9db4d480f91e2e06b74ee494f7a2125af7c3e08f07c7f37"
+    },
+    {
+      "path": "performance.json",
+      "bytes": 1428,
+      "sha256": "36bf62a532eb145c4d1dad3f6b91429d26754a91616be2541788d19ad9d5feee"
+    },
+    {
+      "path": "requirements.txt",
+      "bytes": 16,
+      "sha256": "06e6538c6376271390b3dacf42523473ba2c1335eb398d570e479d693838474f"
+    },
+    {
+      "path": "run-custom-launcher.sh",
+      "bytes": 437,
+      "sha256": "32154c9fd7e7e0463d51b717e58cfed49808c1c8f71fc43255c0933250ee00fb"
+    },
+    {
+      "path": "tests/test_launcher.py",
+      "bytes": 2242,
+      "sha256": "6e85a13e08ecd54165d3740c74856497b34670aded2744c2ffe1c7f081a35ec3"
+    },
+    {
+      "path": "ultrawide-3440x1440.json",
+      "bytes": 1552,
+      "sha256": "c8165615a58c64f0239be470078b96b0e92c04edfcdadf71a158028967be58e4"
+    },
+    {
+      "path": "version.json",
+      "bytes": 271,
+      "sha256": "6a03ffd192f4c6d96c3a37a59a1383d8cc12638bb4947b45d068afbe93d9907b"
+    }
+  ]
+}

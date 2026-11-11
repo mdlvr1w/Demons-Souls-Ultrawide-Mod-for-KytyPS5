@@ -1,0 +1,682 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index d98e61a..47c8a7f 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -369,6 +369,7 @@ list(APPEND kyty_emulator_src
+ )
+ list(REMOVE_DUPLICATES kyty_emulator_src)
+ 
++
+ if (KYTY_CLANG_CL)
+ 	set_source_files_properties(${kyty_emulator_src} PROPERTIES COMPILE_FLAGS "-Wno-pragma-pack -Wno-deprecated-declarations -D_TIMESPEC_DEFINED")
+ endif()
+@@ -421,6 +422,9 @@ list(APPEND check_headers
+ 
+ function(add_kyty_full_emulator_test target source)
+ 	add_executable(${target} EXCLUDE_FROM_ALL ${source} ${kyty_emulator_src})
++	if(LINUX)
++		target_link_options(${target} PRIVATE "-Wl,--wrap=memcpy")
++	endif()
+ 	target_link_libraries(${target} ${kyty_emulator_link_libraries})
+ 	target_include_directories(${target} PRIVATE ${inc_headers})
+ 	if (WIN32)
+@@ -898,3 +902,7 @@ endif()
+ if(KYTY_CLANG_CL)
+ 	install(FILES "${KYTY_THIRD_PARTY_DIR}/winpthread/bin/libwinpthread-1.dll" DESTINATION .)
+ endif()
++
++if(LINUX)
++  target_link_options(kyty_emulator PRIVATE "-Wl,--wrap=memcpy")
++endif()
+diff --git a/src/common/guardedCopy.cpp b/src/common/guardedCopy.cpp
+index b625e88..5e1dd64 100644
+--- a/src/common/guardedCopy.cpp
++++ b/src/common/guardedCopy.cpp
+@@ -50,3 +50,24 @@ bool ResumeGuardedCopy(void* context) noexcept {
+ } // namespace Common
+ 
+ #endif
++
++#if defined(__linux__)
++#include <cerrno>
++#include <sys/uio.h>
++#include <unistd.h>
++
++namespace Common {
++// Read through the kernel so inaccessible guest pages return EFAULT rather than
++// entering the emulator's SIGSEGV handler. Return the number of bytes not copied.
++uint64_t GuardedCopy(void* destination, const void* source, uint64_t size) noexcept {
++    if (size == 0) return 0;
++    iovec local {destination, static_cast<size_t>(size)};
++    iovec remote {const_cast<void*>(source), static_cast<size_t>(size)};
++    ssize_t copied;
++    do {
++        copied = process_vm_readv(getpid(), &local, 1, &remote, 1, 0);
++    } while (copied < 0 && errno == EINTR);
++    return copied < 0 ? size : size - static_cast<uint64_t>(copied);
++}
++} // namespace Common
++#endif
+diff --git a/src/common/guardedCopy.h b/src/common/guardedCopy.h
+index a5953e6..907851f 100644
+--- a/src/common/guardedCopy.h
++++ b/src/common/guardedCopy.h
+@@ -5,11 +5,11 @@
+ 
+ namespace Common {
+ 
+-#if defined(_WIN32)
+ // A copy that stops at the first byte it cannot read or write: the access violation resumes after the copy
+ // (hostException.cpp asks ResumeGuardedCopy before the guest-memory fault handler). Returns the bytes not copied:
+ // 0 when all were, else the copy ended at byte `size` - returned (a page without access there).
+ uint64_t GuardedCopy(void* destination, const void* source, uint64_t size) noexcept;
++#if defined(_WIN32)
+ // The vectored exception handler's check (`context`: the fault's CONTEXT): true when the access violation is
+ // GuardedCopy's, with the context moved past its copy.
+ bool ResumeGuardedCopy(void* context) noexcept;
+diff --git a/src/graphics/host_gpu/renderer/pipeline/pipelineCache.cpp b/src/graphics/host_gpu/renderer/pipeline/pipelineCache.cpp
+index 1d3d93c..4265aa1 100644
+--- a/src/graphics/host_gpu/renderer/pipeline/pipelineCache.cpp
++++ b/src/graphics/host_gpu/renderer/pipeline/pipelineCache.cpp
+@@ -1,3 +1,4 @@
++#include "customUiTransform.h"
+ #include "graphics/host_gpu/renderer/pipeline/pipelineCache.h"
+ 
+ #include "common/assert.h"
+@@ -722,9 +723,11 @@ struct PipelineCache::ProgramCache {
+ 			            static_cast<unsigned long long>(XXH3_64bits(spirv.data(), spirv.size() * sizeof(uint32_t))));
+ 		}
+ 
++		const auto centered = CustomUi::Apply(spirv);
++		const auto& module_spirv = centered.empty() ? spirv : centered;
+ 		vk::ShaderModuleCreateInfo create_info {};
+-		create_info.codeSize    = spirv.size() * sizeof(uint32_t);
+-		create_info.pCode       = spirv.data();
++		create_info.codeSize    = module_spirv.size() * sizeof(uint32_t);
++		create_info.pCode       = module_spirv.data();
+ 		vk::ShaderModule module = nullptr;
+ 		RequireVulkanSuccess(device.createShaderModule(&create_info, nullptr, &module),
+ 		                     "create recompiled shader module");
+diff --git a/src/graphics/presentation/window/hostInput.cpp b/src/graphics/presentation/window/hostInput.cpp
+index 22ba8ae..06f39ce 100644
+--- a/src/graphics/presentation/window/hostInput.cpp
++++ b/src/graphics/presentation/window/hostInput.cpp
+@@ -1,3 +1,4 @@
++#include <cstdlib>
+ #include "graphics/presentation/window/hostInput.h"
+ 
+ #include "SDL_error.h"
+@@ -409,6 +410,12 @@ int PollMouse(uint64_t now_ms) {
+ bool HostInputWaitEvent(SDL_Event* event) {
+ 	if (!g_mouse.enabled || SDL_GetKeyboardFocus() == nullptr) {
+ 		CenterMouseStick();
++        if (std::getenv("CODEX_CUSTOM_MODS")) {
++            SDL_ClearError();
++            if (SDL_WaitEventTimeout(event, 250) != 0) return true;
++            if (SDL_GetError()[0] != '\0') EXIT("%s\n", SDL_GetError());
++            return false;
++        }
+ 		if (SDL_WaitEvent(event) == 0) {
+ 			EXIT("%s\n", SDL_GetError());
+ 		}
+diff --git a/src/graphics/presentation/window/window.cpp b/src/graphics/presentation/window/window.cpp
+index 4353e4f..ca186f4 100644
+--- a/src/graphics/presentation/window/window.cpp
++++ b/src/graphics/presentation/window/window.cpp
+@@ -1,3 +1,4 @@
++#include "libs/customMods.h"
+ #include "graphics/presentation/window.h"
+ 
+ #include "SDL.h"
+@@ -524,6 +525,7 @@ void WindowContext::ProcessEvent(double time_s) {
+ 	auto& game  = loop;
+ 	auto* event = &game.event;
+ 	EXIT_IF(SDL_GetEventState(SDL_DISPLAYEVENT) != SDL_ENABLE);
++	if (event->type == SDL_KEYDOWN && event->key.repeat == 0) CustomMods::CameraKey(event->key.keysym.sym);
+ 	if ((event->type == SDL_KEYDOWN || event->type == SDL_KEYUP) &&
+ 	    event->key.keysym.sym == SDLK_F7) {
+ 		if (event->type == SDL_KEYDOWN && event->key.repeat == 0) {
+@@ -809,6 +811,7 @@ void WindowContext::Run() {
+ 
+ 	while (!loop.need_exit) {
+ 		DrainMainThreadTasks();
++		CustomMods::TickCamera();
+ 		if (loop.paused.load(std::memory_order_acquire)) {
+ 			if (!timer.IsPaused()) {
+ 				timer.Pause();
+diff --git a/src/libs/audio.cpp b/src/libs/audio.cpp
+index 390876b..9f2f8b2 100644
+--- a/src/libs/audio.cpp
++++ b/src/libs/audio.cpp
+@@ -206,6 +206,7 @@ bool Audio::FormatIsFloat(Format format) {
+ 	switch (format) {
+ 		case Format::FloatMono:
+ 		case Format::FloatStereo:
++		case Format::Float6Ch:
+ 		case Format::Float8Ch:
+ 		case Format::Float8ChStd:
+ 		case Format::Float12Ch: return true;
+@@ -248,7 +249,8 @@ bool Audio::OpenSdlDevice(PortOut* port) {
+ 	SDL_AudioSpec obtained {};
+ 
+ 	port->audio_device =
+-	    SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained, SDL_AUDIO_ALLOW_ANY_CHANGE);
++	    SDL_OpenAudioDevice(nullptr, 0, &desired, &obtained,
++	        port->format == Format::Float6Ch ? 0 : SDL_AUDIO_ALLOW_ANY_CHANGE);
+ 	if (port->audio_device == 0) {
+ 		LOGF("AudioOut: SDL_OpenAudioDevice failed: %s\n", SDL_GetError());
+ 		return false;
+@@ -483,6 +485,7 @@ Audio::Id Audio::AudioOutOpen(int type, uint32_t samples_num, uint32_t freq, For
+ 				case Format::Signed16bit8ChStd:
+ 				case Format::Float8ChStd: port.channels_num = 8; break;
+ 				case Format::Float12Ch: port.channels_num = 12; break;
++				case Format::Float6Ch: port.channels_num = 6; break;
+ 				default: EXIT("unknown format");
+ 			}
+ 
+diff --git a/src/libs/audio_internal.h b/src/libs/audio_internal.h
+index ad596ee..6b90555 100644
+--- a/src/libs/audio_internal.h
++++ b/src/libs/audio_internal.h
+@@ -16,6 +16,7 @@ enum class Format {
+ 	Signed16bit8ChStd,
+ 	Float8ChStd,
+ 	Float12Ch,
++	Float6Ch, // Custom native 5.1 output, FL FR C LFE SL SR.
+ };
+ 
+ struct OutputParam {
+diff --git a/src/libs/libAudio2.cpp b/src/libs/libAudio2.cpp
+index b585a30..dc8a2e2 100644
+--- a/src/libs/libAudio2.cpp
++++ b/src/libs/libAudio2.cpp
+@@ -1,3 +1,4 @@
++#include "libs/customSurroundDecoder.h"
+ #include "common/assert.h"
+ #include "common/common.h"
+ #include "common/logging/log.h"
+@@ -368,6 +369,34 @@ static bool audioout2_context_has_queueable_device(AudioOut2ContextHandle ctx) {
+ // the front left and right of the context's first float main port. Adding the 36 channels up instead
+ // cancelled most directions.
+ static const void* audioout2_mix_objects_locked(AudioOut2ContextHandle ctx, const AudioOut2PortStateEntry& target) {
++    if (target.audio_format == AudioInternal::Format::Float6Ch) {
++        static const Surround::Decoder decoder;
++        thread_local std::vector<float> output;
++        std::array<Surround::Port, 256> ports {};
++        auto convert = [](const AudioOut2PortStateEntry& p) {
++            Surround::Port out {};
++            out.used = p.used; out.handle = p.handle; out.context = p.context;
++            out.type = p.port_type; out.format = p.data_format; out.rate = p.sampling_freq;
++            out.frames = p.samples_num;
++            out.audioFormat = p.audio_format == AudioInternal::Format::FloatMono ? 4 : 0;
++            out.pcm = static_cast<const float*>(p.pcm_data); out.gain = p.gain; out.ambisonics = p.ambisonics;
++            return out;
++        };
++        for (size_t i = 0; i < ports.size(); ++i) ports[i] = convert(g_audioout2_ports[i]);
++        const auto bed = convert(target);
++        output.resize(static_cast<size_t>(bed.frames) * 6);
++        const auto mask = Surround::Mix(decoder, ports.data(), ports.size(), bed, output.data());
++        for (auto& sample : output) sample = std::isfinite(sample) ? std::clamp(sample, -1.f, 1.f) : 0.f;
++        static uint64_t blocks = 0;
++        if (++blocks % 480 == 1) {
++            double energy[6] {};
++            for (size_t i = 0; i < output.size(); ++i) energy[i % 6] += double(output[i]) * output[i];
++            std::printf("Custom 5.1: context=%llu coefficient-mask=%09llx energy FL/FR/C/LFE/SL/SR %.5g %.5g %.5g %.5g %.5g %.5g\n",
++                (unsigned long long)ctx, (unsigned long long)mask, energy[0], energy[1], energy[2], energy[3], energy[4], energy[5]);
++        }
++        return output.data();
++    }
++
+ 	constexpr float HALF_POWER = 0.70710677f;
+ 	// Ahead W + X = 1, behind W - X = 1/sqrt(2), at the side (W + Y)^2 + (W - Y)^2 = 2.
+ 	constexpr float W_GAIN = 0.85355339f;
+@@ -424,7 +453,8 @@ static void audioout2_queue_context_audio(AudioOut2ContextHandle ctx, bool block
+ 		    state.pcm_data != nullptr && params.size() < AudioInternal::OUT_PORTS_MAX) {
+ 			const void* data = state.pcm_data;
+ 			if (!objects_mixed && (state.port_type & 0xffu) == 0 &&
+-			    (state.audio_format == AudioInternal::Format::FloatStereo ||
++			    (state.audio_format == AudioInternal::Format::Float6Ch ||
++		     state.audio_format == AudioInternal::Format::FloatStereo ||
+ 			     state.audio_format == AudioInternal::Format::Float8Ch ||
+ 			     state.audio_format == AudioInternal::Format::Float8ChStd)) {
+ 				data          = audioout2_mix_objects_locked(ctx, state);
+@@ -683,8 +713,26 @@ int KYTY_SYSV_ABI AudioOut2PortCreate(AudioOut2ContextHandle ctx, const AudioOut
+ 
+ 	if (audio_format != AudioInternal::Format::Unknown &&
+ 	    !audioout2_port_type_is_object(params->port_type)) {
+-		audio_handle = AudioInternal::AudioOutOpen(audio_type, samples_num, params->sampling_freq,
+-		                                           audio_format);
++		const char* mode = std::getenv("CODEX_AUDIO_MODE");
++        const bool surround = mode && std::strcmp(mode, "5.1") == 0 &&
++            (params->port_type & 0xffu) == 0 &&
++            (audio_format == AudioInternal::Format::FloatStereo ||
++             audio_format == AudioInternal::Format::Float8Ch || audio_format == AudioInternal::Format::Float8ChStd);
++        if (surround) {
++            audio_handle = AudioInternal::AudioOutOpen(audio_type, samples_num, params->sampling_freq,
++                                                        AudioInternal::Format::Float6Ch);
++            if (!AudioInternal::AudioOutHasDevice(audio_handle)) {
++                AudioInternal::AudioOutClose(audio_handle);
++                audio_handle = 0;
++                std::printf("Custom 5.1: six-channel device unavailable; retaining original audio\n");
++            } else {
++                Common::LockGuard lock(g_audioout2_port_mutex);
++                port_state->audio_format = AudioInternal::Format::Float6Ch;
++                std::printf("Custom 5.1: native six-channel SDL output active\n");
++            }
++        }
++        if (audio_handle == 0) audio_handle = AudioInternal::AudioOutOpen(audio_type, samples_num, params->sampling_freq,
++                                                                           audio_format);
+ 	}
+ 
+ 	g_audioout2_port_mutex.Lock();
+diff --git a/src/loader/demonsSoulsCopy.cpp b/src/loader/demonsSoulsCopy.cpp
+index 6bb80d2..9338834 100644
+--- a/src/loader/demonsSoulsCopy.cpp
++++ b/src/loader/demonsSoulsCopy.cpp
+@@ -1,3 +1,4 @@
++#include "libs/customMods.h"
+ #include "loader/demonsSoulsCopy.h"
+ 
+ #include "common/logging/log.h"
+@@ -71,8 +72,10 @@ void* KYTY_SYSV_ABI     CoherentMove(void* destination, const void* source, size
+ 	if (!overlap && size >= 256 * 1024 && kyty_local_move_compare.load(std::memory_order_relaxed) != 0)
+ 		return CompareMove(to, from, size);
+ 	if (size >= 256 * 1024) LiveCounters::Add(LiveCounters::GuestMoveBytes, size);
+-	return Move(destination, source, size,
++	auto* result = Move(destination, source, size,
+ 	            overlap ? &Libs::LibKernel::Memory::TryPrepareHostWrite : &Libs::LibKernel::Memory::TryPrepareHostOverwrite);
++    CustomMods::FixPreview(destination, size);
++    return result;
+ }
+ // libc.prx's memmove/bcopy/memcpy body, shared by the three entries, which jump to it after the guest's
+ // argument/stack checks with one saved RBP. Hashed whole, not just the prologue, in each build audited; nothing
+diff --git a/src/loader/demonsSoulsRenderSize.cpp b/src/loader/demonsSoulsRenderSize.cpp
+index 8ccd38a..8a2bff2 100644
+--- a/src/loader/demonsSoulsRenderSize.cpp
++++ b/src/loader/demonsSoulsRenderSize.cpp
+@@ -66,6 +66,20 @@ std::optional<uint64_t> FindUniqueData(const Program& program, std::span<const u
+ } // namespace
+ 
+ void Install(Program* program) {
++    // The ultrawide JSON patch replaces the scene-size constants and width table.
++    // Keep the separate performance-mode height query in sync, too.
++    if (const char* height = std::getenv("CODEX_SCENE_HEIGHT"); height && program &&
++        Libs::Graphics::DemonsSouls::IsSupportedGame() && program->file_name.filename() == "eboot.bin") {
++        const uint32_t requested = std::strtoul(height, nullptr, 10);
++        if (requested >= 360 && requested <= 2160) {
++            const auto heights = FindUniqueData(*program, std::span(reinterpret_cast<const uint8_t*>(ModeHeights), sizeof(ModeHeights)));
++            if (heights) {
++                std::memcpy(reinterpret_cast<void*>(*heights + PerformanceMode * sizeof(uint32_t)), &requested, sizeof(requested));
++                std::printf("Custom render scale: performance-mode height query %u\n", requested);
++            }
++        }
++    }
++
+ 	const char* setting = std::getenv("KYTY_RENDER_HEIGHT");
+ 	if (setting == nullptr || *setting == 0 || program == nullptr || !Libs::Graphics::DemonsSouls::IsSupportedGame() ||
+ 	    program->file_name.filename() != "eboot.bin")
+diff --git a/src/loader/demonsSoulsSceneGuard.cpp b/src/loader/demonsSoulsSceneGuard.cpp
+index b971846..e0aed64 100644
+--- a/src/loader/demonsSoulsSceneGuard.cpp
++++ b/src/loader/demonsSoulsSceneGuard.cpp
+@@ -172,6 +172,7 @@ std::atomic<uint32_t>                 g_null_count {0};
+ std::atomic<bool>                     g_null_dump {false};
+ 
+ void DumpThreads(const char* when) {
++#if defined(_WIN32)
+ 	LocalPlatform::PrepareSampling();
+ 	const auto self = LocalPlatform::ThreadId();
+ 	std::string out = std::string("SCENE-NULL threads ") + when + "\n";
+@@ -199,6 +200,9 @@ void DumpThreads(const char* when) {
+ 	}
+ 	std::fputs(out.c_str(), stdout);
+ 	std::fflush(stdout);
++#else
++	std::printf("SCENE-NULL threads %s: stack sampling is unavailable on this platform\n", when);
++#endif
+ }
+ 
+ void DumpNullElements(int after_ms) {
+diff --git a/src/loader/runtimeLinker.cpp b/src/loader/runtimeLinker.cpp
+index 7193cab..09fe046 100644
+--- a/src/loader/runtimeLinker.cpp
++++ b/src/loader/runtimeLinker.cpp
+@@ -1,3 +1,4 @@
++#include "libs/customMods.h"
+ #include "loader/runtimeLinker.h"
+ 
+ #include "common/assert.h"
+@@ -1615,6 +1616,7 @@ void RuntimeLinker::Execute(const std::filesystem::path& game_patch) {
+ 	DemonsSoulsGpuPages::Install(m_programs.empty() ? nullptr : m_programs.front());
+ 	DemonsSoulsRenderSize::Install(m_programs.empty() ? nullptr : m_programs.front());
+ 	DemonsSoulsSceneGuard::Install(m_programs.empty() ? nullptr : m_programs.front());
++	if (!m_programs.empty()) CustomMods::InstallCamera(m_programs.front()->base_vaddr);
+ 	StartAllModules();
+ 
+ 	LOGF_COLOR(Log::Color::BrightYellow, "---\n--- Execute: %s\n---\n", "Main");
+diff --git a/src/graphics/host_gpu/renderer/pipeline/customUiTransform.h b/src/graphics/host_gpu/renderer/pipeline/customUiTransform.h
+new file mode 100644
+index 0000000..a59e6ba
+--- /dev/null
++++ b/src/graphics/host_gpu/renderer/pipeline/customUiTransform.h
+@@ -0,0 +1,74 @@
++// Port of dlvr1's MIT-licensed UI adapter; see custom-launcher/LICENSE-original-mod.txt.
++#pragma once
++#include <vector>
++#include <cstdint>
++#include <cstring>
++#include <cmath>
++#include <cstdlib>
++#include <cstdio>
++namespace CustomUi {
++static uint64_t hashCode(const uint32_t* p,size_t words) {
++ uint64_t h=14695981039346656037ull;auto bytes=reinterpret_cast<const uint8_t*>(p);
++ for(size_t i=0;i<words*4;i++){h^=bytes[i];h*=1099511628211ull;}return h;
++}
++struct Analysis {uint32_t scalar=0,vec2=0;size_t sample=0,function=0;int implicit=0,explicitLod=0;bool fragment=false;};
++static bool analyse(const uint32_t* p,size_t n,Analysis& a) {
++ if(n<5||p[0]!=0x07230203||p[3]>10000000)return false;
++ for(size_t i=5;i<n;){uint32_t wc=p[i]>>16,op=p[i]&65535;if(!wc||i+wc>n)return false;
++  if(op==15&&wc>=4&&p[i+1]==4)a.fragment=true;
++  if(op==22&&wc==3&&p[i+2]==32)a.scalar=p[i+1];
++  if(op==54&&!a.function)a.function=i;
++  if(op==87){a.implicit++;a.sample=i;}
++  if(op==88)a.explicitLod++;
++  i+=wc;
++ }
++ for(size_t i=5;i<n;i+=p[i]>>16)
++  if((p[i]&65535)==23&&(p[i]>>16)==4&&p[i+2]==a.scalar&&p[i+3]==2)a.vec2=p[i+1];
++ return a.fragment&&a.scalar&&a.vec2&&a.function&&a.implicit==1;
++}
++static uint32_t bits(float v){uint32_t b;memcpy(&b,&v,4);return b;}
++static void emit(std::vector<uint32_t>& v,std::initializer_list<uint32_t> w){v.insert(v.end(),w);}
++static bool transform(const uint32_t* p,size_t n,const Analysis& a,float dx,float dy,float scale,std::vector<uint32_t>& out){
++ if(!std::isfinite(dx)||!std::isfinite(dy)||!std::isfinite(scale)||scale<.25f||scale>2.f)return false;
++ auto sample=a.sample;if((p[sample]>>16)<5)return false;
++ uint32_t coordinate=p[sample+4];bool typed=false;
++ for(size_t i=a.function;i<sample;i+=p[i]>>16)
++  if((p[i]>>16)>=3&&p[i+1]==a.vec2&&p[i+2]==coordinate)typed=true;
++ if(!typed)return false;
++ uint32_t next=p[3],x=next++,y=next++,delta=next++,sc=next++,scv=next++,shifted=next++,scaled=next++;
++ out.assign(p,p+5);out[3]=next;
++ for(size_t i=5;i<n;){uint32_t wc=p[i]>>16;
++  if(i==a.function){
++   emit(out,{(4u<<16)|43,a.scalar,x,bits(dx)});emit(out,{(4u<<16)|43,a.scalar,y,bits(dy)});
++   emit(out,{(5u<<16)|44,a.vec2,delta,x,y});
++   emit(out,{(4u<<16)|43,a.scalar,sc,bits(scale)});emit(out,{(5u<<16)|44,a.vec2,scv,sc,sc});
++  }
++  if(i==sample){
++   emit(out,{(5u<<16)|131,a.vec2,shifted,coordinate,delta});
++   emit(out,{(5u<<16)|136,a.vec2,scaled,shifted,scv});
++   size_t start=out.size();out.insert(out.end(),p+i,p+i+wc);out[start+4]=scaled;
++  }else out.insert(out.end(),p+i,p+i+wc);
++  i+=wc;
++ }
++ return true;
++}
++
++inline std::vector<uint32_t> Apply(const std::vector<uint32_t>& original) {
++ const char* enabled = std::getenv("CODEX_UI_OUTPUT_WIDTH");
++ if (!enabled) return {};
++ const auto hash = hashCode(original.data(), original.size());
++ // Reviewed Linux equivalents: the first differs only in result-ID gaps;
++ // the second also reorders independent constant and descriptor-word loads.
++ if (hash != 0x879156b801917c3full && hash != 0x253e4085c27e661cull &&
++     hash != 0x223603ce4e423934ull && hash != 0x06ca20c964f2595dull) return {};
++ const float width = std::strtof(enabled, nullptr);
++ if (!std::isfinite(width) || width <= 3840 || width > 16384) return {};
++ Analysis a;
++ std::vector<uint32_t> out;
++ if (analyse(original.data(), original.size(), a) &&
++     transform(original.data(), original.size(), a, (1.f - 3840.f / width) * .5f, 0.f, 1.f, out)) {
++   std::printf("Custom UI: centered composite %016llx at output width %.0f\n", (unsigned long long)hash, width);
++ }
++ return out;
++}
++} // namespace CustomUi
+diff --git a/src/libs/customMods.cpp b/src/libs/customMods.cpp
+new file mode 100644
+index 0000000..9a3c488
+--- /dev/null
++++ b/src/libs/customMods.cpp
+@@ -0,0 +1,111 @@
++// Native port of dlvr1's camera and inventory fixes (MIT).
++#include "libs/customMods.h"
++#include "common/guardedCopy.h"
++#include <SDL.h>
++#include <algorithm>
++#include <atomic>
++#include <cstdio>
++#include <cstdlib>
++#include <cstring>
++#include <fcntl.h>
++#include <unistd.h>
++
++namespace CustomMods {
++static std::atomic<uint64_t> camera_slot {0};
++static std::atomic<int> camera_step {0};
++static bool enabled() { return std::getenv("CODEX_CUSTOM_MODS") != nullptr; }
++static int key(const char* env, int fallback) {
++    const char* value = std::getenv(env);
++    const auto code = value ? SDL_GetKeyFromName(value) : SDLK_UNKNOWN;
++    return code == SDLK_UNKNOWN ? fallback : code;
++}
++static void persistStep(int step) {
++    static std::atomic<int> previous {-1};
++    if (previous.exchange(step) == step) return;
++    if (FILE* f = std::fopen("camera-step.txt", "w")) { std::fprintf(f, "%d\n", step); std::fclose(f); }
++}
++static void applyCamera(int step) {
++    if (!camera_slot) return;
++    float current = 0;
++    if (Common::GuardedCopy(&current, reinterpret_cast<void*>(camera_slot.load()), 4) != 0) return;
++    bool recognized = false;
++    for (int i = 0; i <= 4; ++i) recognized |= current == 4.5f + 1.125f * i;
++    if (!recognized) return;
++    const float target = 4.5f + 1.125f * step;
++    if (current == target) { camera_step = step; persistStep(step); return; }
++    const int fd = open("/proc/self/mem", O_RDWR | O_CLOEXEC);
++    if (fd < 0) return;
++    const bool ok = pwrite(fd, &target, 4, camera_slot.load()) == 4;
++    close(fd);
++    if (!ok) return;
++    camera_step = step;
++    persistStep(step);
++    std::printf("Custom camera: step %d, distance %.3f\n", step, target);
++}
++void InstallCamera(uint64_t base) {
++    if (!enabled()) return;
++    camera_slot = base + 0x27aaf50;
++    const char* value = std::getenv("CODEX_CAMERA_STEP");
++    camera_step = std::clamp(value ? std::atoi(value) : 0, 0, 4);
++    applyCamera(camera_step.load());
++    std::printf("Custom camera: watching guest slot %llx\n", (unsigned long long)camera_slot.load());
++}
++void CameraKey(int32_t code) {
++    if (!enabled()) return;
++    if (code == key("CODEX_CAMERA_FARTHER_KEY", SDLK_PAGEUP)) applyCamera(std::min(4, camera_step.load() + 1));
++    if (code == key("CODEX_CAMERA_CLOSER_KEY", SDLK_PAGEDOWN)) applyCamera(std::max(0, camera_step.load() - 1));
++}
++void TickCamera() {
++    static uint64_t last = 0;
++    const auto now = SDL_GetTicks64();
++    if (now - last < 250) return;
++    last = now;
++    if (auto* request = std::fopen("camera-request.txt", "r")) {
++        int step = -1;
++        const bool valid = std::fscanf(request, "%d", &step) == 1 && step >= 0 && step <= 4;
++        std::fclose(request); std::remove("camera-request.txt");
++        if (valid) camera_step = step;
++    }
++    applyCamera(camera_step.load());
++}
++} // namespace CustomMods
++
++extern "C" void* __real_memcpy(void*, const void*, size_t);
++void CustomMods::FixPreview(void* destination, size_t size) {
++    // Same copy shape and four source signatures as the Windows adapter.
++    // Only the known inventory record is touched, after the original copy.
++    bool match = false;
++    if (size == 0xc70 && reinterpret_cast<uintptr_t>(destination) >= 0x200000000ull &&
++        reinterpret_cast<uintptr_t>(destination) < 0x210000000ull) {
++        static const bool enabled = std::getenv("CODEX_UI_OUTPUT_WIDTH") != nullptr;
++        if (enabled) {
++            uint32_t values[4] {};
++            const auto* src = static_cast<const unsigned char*>(destination);
++            __real_memcpy(&values[0], src + 0xcc, 4); __real_memcpy(&values[1], src + 0xd4, 4);
++            __real_memcpy(&values[2], src + 0x14c, 4); __real_memcpy(&values[3], src + 0x154, 4);
++            match = values[0] == 0x3f9d6f3d && values[1] == 0x40227935 &&
++                    values[2] == 0x3f9d6f3d && values[3] == 0x40227935;
++        }
++    }
++    if (match) {
++        // Preserve the original adapter's calibrated 3440x1440 correction;
++        // interpolate its offset by the extra horizontal field of view.
++        const float width = std::strtof(std::getenv("CODEX_UI_OUTPUT_WIDTH"), nullptr);
++        const float delta = (width - 3840.f) / (5160.f - 3840.f);
++        float original, shifted;
++        const uint32_t a = 0x3f9d6f3d, b = 0x3f6e11ad;
++        __real_memcpy(&original, &a, 4); __real_memcpy(&shifted, &b, 4);
++        const float target = original + (shifted - original) * delta;
++        auto* dst = static_cast<unsigned char*>(destination);
++        __real_memcpy(dst + 0xcc, &target, 4); __real_memcpy(dst + 0x14c, &target, 4);
++        static std::atomic<unsigned> count {0};
++        if (count.fetch_add(1) == 0) std::printf("Custom inventory: preview camera corrected\n");
++    }
++}
++
++extern "C" void* __wrap_memcpy(void* destination, const void* source, size_t size) {
++    auto* result = __real_memcpy(destination, source, size);
++    CustomMods::FixPreview(destination, size);
++    return result;
++}
++
+diff --git a/src/libs/customMods.h b/src/libs/customMods.h
+new file mode 100644
+index 0000000..f15086f
+--- /dev/null
++++ b/src/libs/customMods.h
+@@ -0,0 +1,9 @@
++#pragma once
++#include <cstdint>
++#include <cstddef>
++namespace CustomMods {
++void InstallCamera(uint64_t base);
++void CameraKey(int32_t key);
++void TickCamera();
++void FixPreview(void* destination, size_t size);
++}
+diff --git a/src/libs/customSurroundDecoder.h b/src/libs/customSurroundDecoder.h
+new file mode 100755
+index 0000000..8bb4e16
+--- /dev/null
++++ b/src/libs/customSurroundDecoder.h
+@@ -0,0 +1,108 @@
++#pragma once
++#include <array>
++#include <cmath>
++#include <algorithm>
++#include <cstdint>
++#include <cstddef>
++
++namespace Surround {
++// Guest layout verified against build 3e6ee3e's disassembly. No ownership is taken.
++struct Port {
++ bool used; unsigned char pad[7]; uint64_t handle,context;
++ uint16_t type; uint16_t pad2; uint32_t format,rate,frames;
++ int audioFormat,audioHandle; const float* pcm; float gain; uint32_t ambisonics;
++};
++static_assert(sizeof(Port)==64 && offsetof(Port,pcm)==48 && offsetof(Port,ambisonics)==60);
++
++constexpr int Channels=6, Coefficients=36;
++// ACN/SN3D real spherical harmonics, without the Condon-Shortley phase.
++// Positive azimuth is left. Positions are FL FR C LFE SL SR.
++inline std::array<double,36> Basis(double azimuth,double elevation=0) {
++ std::array<double,36> y{};
++ for(int n=0;n<=5;n++) for(int m=0;m<=n;m++) {
++  double p=1,x=std::sin(elevation),root=std::sqrt(std::max(0.0,1-x*x));
++  for(int k=1;k<=m;k++) p*=(2*k-1)*root;
++  if(n>m) {
++   double prev=p,current=(2*m+1)*x*p;
++   for(int l=m+2;l<=n;l++) {double next=((2*l-1)*x*current-(l+m-1)*prev)/(l-m);prev=current;current=next;}
++   p=current;
++  }
++  double ratio=1;for(int k=n-m+1;k<=n+m;k++)ratio/=k;
++  double norm=std::sqrt((m==0?1.0:2.0)*ratio);
++  y[n*(n+1)+m]=norm*p*std::cos(m*azimuth);
++  if(m)y[n*(n+1)-m]=norm*p*std::sin(m*azimuth);
++ }
++ return y;
++}
++
++struct Decoder {
++ double matrix[5][36]{};
++ Decoder() {
++  // All-round decoding: integrate a dense virtual sphere, panning each virtual
++  // direction onto its two neighbouring horizontal speakers with equal-power
++  // VBAP. This covers the large rear gap of 5.1 without sampling nulls there.
++  // Fifth-order max-rE weights reduce sidelobes. No synthesized ambisonic LFE.
++  constexpr double pi=3.14159265358979323846;
++  const double angles[5]={0,30,110,250,330};
++  const int outputs[5]={2,0,3,4,1};
++  double weights[36]{};
++  double pn[6]={1,0.932469514203152};
++  for(int n=2;n<=5;n++)pn[n]=((2*n-1)*pn[1]*pn[n-1]-(n-1)*pn[n-2])/n;
++  for(int n=0;n<=5;n++)for(int k=n*n;k<(n+1)*(n+1);k++)weights[k]=(2*n+1)*pn[n];
++  constexpr int azSteps=720,elSteps=64;
++  for(int az=0;az<azSteps;az++) {
++   double deg=(az+.5)*360/azSteps;int a=0;while(a<4&&deg>=angles[a+1])a++;
++   int b=(a+1)%5;double end=b?angles[b]:360;
++   double gap=(end-angles[a])*pi/180,offset=(deg-angles[a])*pi/180;
++   double ga=std::sin(gap-offset)/std::sin(gap),gb=std::sin(offset)/std::sin(gap);
++   double norm=std::sqrt(ga*ga+gb*gb);ga/=norm;gb/=norm;
++   for(int el=0;el<elSteps;el++){
++    auto y=Basis(deg*pi/180,std::asin(-1+2*(el+.5)/elSteps));
++    for(int k=0;k<36;k++){
++     double v=y[k]*weights[k]/(azSteps*elSteps);
++     matrix[outputs[a]][k]+=ga*v;matrix[outputs[b]][k]+=gb*v;
++    }
++   }
++  }
++  auto front=Basis(0);double referenceEnergy=0;
++  for(int s=0;s<5;s++){double v=0;for(int k=0;k<36;k++)v+=matrix[s][k]*front[k];referenceEnergy+=v*v;}
++  // Kyty's original frontal stereo source produces L=R=1 (total energy 2).
++  // Match that reference rather than losing 3 dB by normalizing five feeds to 1.
++  double scale=std::sqrt(2/referenceEnergy);
++  for(auto& row:matrix)for(double& v:row)v*=scale;
++ }
++};
++
++// Output is FL FR C LFE SL SR. Return the active ambisonic coefficient mask.
++inline uint64_t Mix(const Decoder& decoder,const Port* ports,size_t count,const Port& bed,float* out) {
++ const unsigned channels=((bed.format>>8)&255)?std::min((bed.format>>8)&255,16u):2;
++ const int speakerMap[5]={0,1,2,4,5};
++ std::fill(out,out+size_t(bed.frames)*6,0.f);
++ for(unsigned f=0;f<bed.frames;f++) {
++  if(channels==2){out[f*6]=bed.pcm[f*2];out[f*6+1]=bed.pcm[f*2+1];}
++  else if(channels==8) {
++   for(int c=0;c<4;c++)out[f*6+c]=bed.pcm[f*8+c];
++   // Fold the 7.1 side+back pairs into the 5.1 surrounds at -3dB each.
++   out[f*6+4]=.70710678f*(bed.pcm[f*8+4]+bed.pcm[f*8+6]);
++   out[f*6+5]=.70710678f*(bed.pcm[f*8+5]+bed.pcm[f*8+7]);
++  }
++ }
++ uint64_t mask=0;
++ for(size_t i=0;i<count;i++) {
++  const Port& p=ports[i];
++  if(!p.used||p.context!=bed.context||(p.type&0xff00)!=0x100||!p.pcm||p.audioFormat!=4||p.frames!=bed.frames)continue;
++  if((p.ambisonics&0x40)!=0) {
++   const uint32_t acn=p.ambisonics&~0x40u;if(acn>=36)continue;
++   mask|=1ull<<acn;
++   for(int s=0;s<5;s++){
++    float gain=float(decoder.matrix[s][acn])*p.gain;
++    for(unsigned f=0;f<bed.frames;f++)out[f*6+speakerMap[s]]+=p.pcm[f]*gain;
++   }
++  } else {
++   // Unpositioned mono objects keep the original centered presentation.
++   for(unsigned f=0;f<bed.frames;f++)out[f*6+2]+=p.pcm[f]*p.gain;
++  }
++ }
++ return mask;
++}
++}

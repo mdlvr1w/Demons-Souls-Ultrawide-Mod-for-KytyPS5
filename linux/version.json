@@ -1,0 +1,9 @@
+{
+  "version": "1.0.0-linux",
+  "kyty_repository": "https://github.com/chenxiao07/KytyPS5",
+  "kyty_tag": "v20261013",
+  "kyty_commit": "3e6ee3ec0bcef90afeb280c08514fd7355c483b5",
+  "title": "PPSA01341",
+  "game_version": "01.007.000",
+  "release_type": "experimental"
+}
